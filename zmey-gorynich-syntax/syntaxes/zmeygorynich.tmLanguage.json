@@ -1,0 +1,106 @@
+{
+	"name": "Zmey Gorynich",
+	"scopeName": "source.zmeygorynich",
+	"fileTypes": [".zg"],
+	"patterns": [
+	  {
+		"include": "#keywords"
+	  },
+	  {
+		"include": "#operators"
+	  },
+	  {
+		"include": "#strings"
+	  },
+	  {
+		"include": "#numbers"
+	  },
+	  {
+		"include": "#identifiers"
+	  },
+	  {
+		"include": "#goyda"
+	  }
+	],
+	"repository": {
+	  "keywords": {
+		"patterns": [
+		  {
+			"name": "keyword.control.zmeygorynich",
+			"match": "\\b(покуда|молвить|внемли|ухожу я в пляс|закончили пляски)\\b",
+			"settings": {
+			  "foreground": "#C0D127FF",
+			  "fontStyle": "bold"
+			}
+		  }
+		]
+	  },
+	  "operators": {
+		"patterns": [
+		  {
+			"name": "keyword.operator.zmeygorynich",
+			"match": "[+\\-*/%<>=!]+|\\*\\*",
+			"settings": {
+			  "foreground": "#008000"
+			}
+		  }
+		]
+	  },
+	  "strings": {
+		"patterns": [
+		  {
+			"name": "string.quoted.double.zmeygorynich",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+			  {
+				"name": "constant.character.escape.zmeygorynich",
+				"match": "\\\\.",
+				"settings": {
+				  "foreground": "#FF4500"
+				}
+			  }
+			],
+			"settings": {
+			  "foreground": "#FF6347"
+			}
+		  }
+		]
+	  },
+	  "numbers": {
+		"patterns": [
+		  {
+			"name": "constant.numeric.zmeygorynich",
+			"match": "\\b\\d+\\b",
+			"settings": {
+			  "foreground": "#1E90FF"
+			}
+		  }
+		]
+	  },
+	  "identifiers": {
+		"patterns": [
+		  {
+			"name": "variable.zmeygorynich",
+			"match": "\\b(?!покуда|молвить|внемли|ухожу я в пляс|закончили пляски|гойда)\\w+\\b",
+			"settings": {
+			  "foreground": "#58A4C7FF"
+			}
+		  }
+		]
+	  },
+	  "goyda": {
+		"patterns": [
+		  {
+			"name": "punctuation.terminator.zmeygorynich",
+			"match": "\\bгойда\\b",
+			"settings": {
+			  "foreground": "#888888FF",
+			  "fontStyle": "italic"
+			}
+		  }
+		]
+	  }
+	}
+  }
+  

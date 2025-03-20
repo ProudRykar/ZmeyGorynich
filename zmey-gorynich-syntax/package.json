@@ -1,0 +1,30 @@
+{
+  "name": "zmey-gorynich-syntax",
+  "displayName": "Zmey Gorynich Syntax Highlighting",
+  "description": "Syntax highlighting for Zmey Gorynich language (.zg)",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.86.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "zmeygorynich",
+      "aliases": ["Zmey Gorynich", "zmeygorynich"],
+      "extensions": [".zg"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "zmeygorynich",
+      "scopeName": "source.zmeygorynich",
+      "path": "./syntaxes/zmeygorynich.tmLanguage.json"
+    }],
+    "themes": [{
+      "label": "Zmey Gorynich Dark",
+      "uiTheme": "vs-dark",
+      "path": "./themes/zmey-gorynich-dark.json"
+    }]
+  }
+}
