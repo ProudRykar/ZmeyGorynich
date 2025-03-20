@@ -12,7 +12,7 @@ def run_code(filename):
         code = f.read()
 
     tokens = tokenize(code)
-    print("Tokens:", tokens)  # Вывод токенов для отладки
+    print("Tokens:", tokens)
     print('')
 
 #    try:
@@ -28,8 +28,8 @@ def run_code(filename):
 #        print(str(e))
 #        sys.exit(1)  # Завершаем выполнение с кодом ошибки
 
-    ast = parse(tokens, code)  # Передаём code в parse
-    print("AST:", ast)  # Вывод AST для отладки
+    ast = parse(tokens, code)
+    print("AST:", ast)
     print('')
 
     context = {}

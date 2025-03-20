@@ -4,7 +4,7 @@ class Node:
         self.type = type
         self.value = value
         self.children = children if children is not None else []
-        self.op = op  # Добавляем атрибут для оператора
-
+        self.op = op
+        
     def __repr__(self):
         return f"<node.Node type={self.type}, value={self.value}, op={self.op}, children={self.children}>"

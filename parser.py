@@ -65,22 +65,22 @@ def parse(tokens, code):
                     raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось выражение после 'корень из'\n{error_context}")
                 return Node('RootOp', children=[expr_node])
             
-            elif kind == 'BRACKET' and value == '[':  # Новая ветка для массивов
-                i += 1  # Пропускаем '['
+            elif kind == 'BRACKET' and value == '[':
+                i += 1
                 elements = []
                 while i < len(tokens) and not (tokens[i][0] == 'BRACKET' and tokens[i][1] == ']'):
                     element = parse_expression()
                     if element:
                         elements.append(element)
                     if i < len(tokens) and tokens[i][0] == 'COMMA':
-                        i += 1  # Пропускаем запятую
+                        i += 1
                     elif i < len(tokens) and not (tokens[i][0] == 'BRACKET' and tokens[i][1] == ']'):
                         error_context = get_context(code, line, col)
                         raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась запятая или ']' в массиве\n{error_context}")
                 if i >= len(tokens) or tokens[i][1] != ']':
                     error_context = get_context(code, line, col)
                     raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Незакрытый массив\n{error_context}")
-                i += 1  # Пропускаем ']'
+                i += 1
                 return Node('Array', children=elements)
             
             elif kind == 'PARENTHESIS' and value == '(':
@@ -150,9 +150,8 @@ def parse(tokens, code):
             var_node = Node('ID', value=tokens[i][1])
             line, col = tokens[i][2], tokens[i][3]
             i += 1
-            # Проверяем, есть ли индексация
             if i < len(tokens) and tokens[i][0] == 'BRACKET' and tokens[i][1] == '[':
-                i += 1  # Пропускаем '['
+                i += 1
                 index_node = parse_expression()
                 if not index_node:
                     error_context = get_context(code, line, col)
@@ -160,9 +159,9 @@ def parse(tokens, code):
                 if i >= len(tokens) or tokens[i][0] != 'BRACKET' or tokens[i][1] != ']':
                     error_context = get_context(code, line, col)
                     raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась ']' после индекса\n{error_context}")
-                i += 1  # Пропускаем ']'
+                i += 1
                 if i < len(tokens) and tokens[i][0] == 'ASSIGN':
-                    i += 1  # Пропускаем '='
+                    i += 1
                     expr_node = parse_expression()
                     if i < len(tokens) and tokens[i][0] == 'GOYDA':
                         i += 1
@@ -170,7 +169,7 @@ def parse(tokens, code):
                     else:
                         error_context = get_context(code, line, col)
                         raise SyntaxError(f"Ожидалась 'гойда' после присваивания\n{error_context}")
-            # Обычное присваивание переменной
+
             if i < len(tokens) and tokens[i][0] == 'ASSIGN':
                 i += 1
                 expr_node = parse_expression()
@@ -206,10 +205,9 @@ def parse(tokens, code):
         if i >= len(tokens):
             return None
         if tokens[i][0] == 'ID' and tokens[i][1] == 'молвить':
-            line, col = tokens[i][2], tokens[i][3]  # Сохраняем позицию начала команды
+            line, col = tokens[i][2], tokens[i][3]
             i += 1
             
-            # Проверяем, есть ли скобки
             if i < len(tokens) and tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == '(':
                 i += 1
                 expr_nodes = []
@@ -217,7 +215,7 @@ def parse(tokens, code):
                     expr_node = parse_expression()
                     if expr_node:
                         expr_nodes.append(expr_node)
-                    # Проверяем, что после выражения следует либо запятая, либо закрывающая скобка
+
                     if i < len(tokens):
                         if tokens[i][0] == 'COMMA':
                             i += 1
@@ -233,7 +231,6 @@ def parse(tokens, code):
                     error_context = get_context(code, line, col)
                     raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Незакрытая скобка после 'молвить'\n{error_context}")
             else:
-                # Обработка без скобок: ожидаем только переменную (ID)
                 if i >= len(tokens):
                     error_context = get_context(code, line, col)
                     raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась переменная после 'молвить'\n{error_context}")
@@ -247,7 +244,6 @@ def parse(tokens, code):
                 i += 1
                 expr_nodes = [expr_node]
 
-            # Проверяем наличие 'гойда'
             if i < len(tokens) and tokens[i][0] == 'GOYDA':
                 i += 1
                 return Node('Print', children=expr_nodes)
@@ -293,16 +289,14 @@ def parse(tokens, code):
             if i >= len(tokens) or tokens[i][0] != 'ОТКРЫТАЯФИГУРНАЯСКОБКА':
                 error_context = get_context(code, line, col)
                 raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось 'ухожу я в пляс' после условия в 'покуда'\n{error_context}")
-            i += 1  # Пропускаем 'ухожу я в пляс'
+            i += 1
             body = []
-            # Парсим тело цикла до 'закончили пляски'
+
             while i < len(tokens) and tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
-                # Пробуем разобрать любую инструкцию
                 stmt = parse_assignment() or parse_print() or parse_input() or parse_while()
                 if stmt:
                     body.append(stmt)
                 else:
-                    # Если ничего не разобрано, но токены остались, это ошибка
                     if i < len(tokens):
                         error_context = get_context(code, tokens[i][2], tokens[i][3])
                         raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Неожиданный токен '{tokens[i][1]}' в теле 'покуда'\n{error_context}")
@@ -312,7 +306,7 @@ def parse(tokens, code):
             if i >= len(tokens):
                 error_context = get_context(code, line, col)
                 raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась 'закончили пляски' после тела 'покуда'\n{error_context}")
-            i += 1  # Пропускаем 'закончили пляски'
+            i += 1
             return Node('While', children=[condition, Node('Block', children=body)])
         return None
 
@@ -349,7 +343,6 @@ def parse(tokens, code):
                 raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась ')' после аргументов в 'созвать_дружину'\n{error_context}")
             i += 1
             
-            # Не требуем 'гойда' здесь, так как это выражение, а не самостоятельная инструкция
             return Node('ArrayCreate', children=[size_expr, value_expr])
         return None
 
@@ -376,7 +369,7 @@ def parse(tokens, code):
         if stmt:
             ast.append(stmt)
             continue
-        stmt = parse_array_create()  # Добавляем поддержку создания массива
+        stmt = parse_array_create()
         if stmt:
             ast.append(stmt)
             continue

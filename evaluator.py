@@ -41,8 +41,6 @@ def evaluate(ast, context):
             while evaluate_condition(condition_node, context):
                 evaluate(body_node.children, context)
 
-        # Убрана обработка ArrayCreate отсюда
-
 def evaluate_expression(node, context):
     if node.type == 'строченька':
         return node.value.strip('"')
@@ -51,7 +49,7 @@ def evaluate_expression(node, context):
         return node.value
     
     elif node.type == 'ID':
-        return context.get(node.value, node.value)  # Возвращаем значение или само имя, если не найдено
+        return context.get(node.value, node.value)
     
     elif node.type == 'Array':
         return [evaluate_expression(child, context) for child in node.children]
@@ -65,7 +63,7 @@ def evaluate_expression(node, context):
             raise ValueError(f"Недопустимый индекс {index} для массива длиной {len(array)}")
         return array[int(index)]
     
-    elif node.type == 'ArrayAssignment':  # Эта ветка не нужна здесь, так как это инструкция, а не выражение
+    elif node.type == 'ArrayAssignment':
         raise ValueError("ArrayAssignment не является выражением и не может быть использовано в evaluate_expression")
     
     elif node.type == 'ArrayCreate':
@@ -73,7 +71,7 @@ def evaluate_expression(node, context):
         value = evaluate_expression(node.children[1], context)
         if not isinstance(size, (int, float)) or size < 0:
             raise ValueError(f"Размер массива должен быть неотрицательным числом, а не {size}")
-        return [value] * int(size)  # Возвращаем массив
+        return [value] * int(size)
 
     elif node.type == 'BinaryOp':
         left = evaluate_expression(node.children[0], context)
