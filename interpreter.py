@@ -1,7 +1,7 @@
 import sys
 from lexer import tokenize
 from parser import parse
-from evaluator import evaluate
+from evaluator import Context, evaluate
 
 def run_code(filename):
     if not filename.endswith(".zg"):
@@ -32,8 +32,7 @@ def run_code(filename):
     print("AST:", ast)
     print('')
 
-    context = {}
-    print('Результат программы: ')
+    context = Context()  # Убедимся, что это экземпляр Context    print('Результат программы: ')
     evaluate(ast, context)
 
 if __name__ == "__main__":

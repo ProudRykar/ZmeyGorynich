@@ -53,7 +53,8 @@ def parse(tokens, code):
                 return node
             
             elif kind == 'число':
-                node = Node('число', value=int(value))
+                # Сохраняем value как строку, не преобразуем в int
+                node = Node('число', value=value, line=line, col=col)
                 i += 1
                 return node
             
@@ -147,9 +148,34 @@ def parse(tokens, code):
         if i >= len(tokens):
             return None
         if tokens[i][0] == 'ID':
-            var_node = Node('ID', value=tokens[i][1])
+            var_name = tokens[i][1]
             line, col = tokens[i][2], tokens[i][3]
+            var_node = Node('ID', value=var_name, line=line, col=col)
             i += 1
+            type_hint = None
+            if i < len(tokens) and tokens[i][0] == 'TYPE_ANNOTATION':  # 'быти'
+                i += 1  # Пропускаем 'быти'
+                if i < len(tokens) and tokens[i][0] == 'ID':
+                    type_name = tokens[i][1]  # Например, "цело", "плывун", "строченька", "список"
+                    i += 1
+                    if type_name == 'список' and i < len(tokens) and tokens[i][0] == 'ID':
+                        element_type = tokens[i][1]  # Например, "строченька"
+                        i += 1
+                        type_hint = f"список {element_type}"  # "список строченька"
+                    else:
+                        # Сопоставляем пользовательские типы с внутренними
+                        type_map = {
+                            'цело': 'число:int',
+                            'плывун': 'число:float',
+                            'строченька': 'строченька',
+                            'число': 'число'
+                        }
+                        type_hint = type_map.get(type_name, type_name)  # Если тип неизвестен, оставляем как есть
+                else:
+                    error_context = get_context(code, line, col)
+                    raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидался тип после 'быти'\n{error_context}")
+
+            # Проверяем индексацию: ID[expression] = expression
             if i < len(tokens) and tokens[i][0] == 'BRACKET' and tokens[i][1] == '[':
                 i += 1
                 index_node = parse_expression()
@@ -165,17 +191,18 @@ def parse(tokens, code):
                     expr_node = parse_expression()
                     if i < len(tokens) and tokens[i][0] == 'GOYDA':
                         i += 1
-                        return Node('ArrayAssignment', children=[var_node, index_node, expr_node])
+                        return Node('ArrayAssignment', children=[var_node, index_node, expr_node], type_hint=type_hint, line=line, col=col)
                     else:
                         error_context = get_context(code, line, col)
                         raise SyntaxError(f"Ожидалась 'гойда' после присваивания\n{error_context}")
 
+            # Обычное присваивание: ID = expression
             if i < len(tokens) and tokens[i][0] == 'ASSIGN':
                 i += 1
                 expr_node = parse_expression()
                 if i < len(tokens) and tokens[i][0] == 'GOYDA':
                     i += 1
-                    return Node('Assignment', children=[var_node, expr_node])
+                    return Node('Assignment', children=[var_node, expr_node], type_hint=type_hint, line=line, col=col)
                 else:
                     error_context = get_context(code, line, col)
                     raise SyntaxError(f"Ожидалась 'гойда' после присваивания\n{error_context}")
@@ -189,7 +216,7 @@ def parse(tokens, code):
         if i >= len(tokens):
             return None
         kind, value, line, col = tokens[i]
-        if kind == 'OP' and value in ('<', '>', '<=', '>=', '=', '!='):
+        if kind == 'OP' and value in ('<', '>', '<=', '>=', '==', '!='):
             op = value
             i += 1
             right = parse_expression()
@@ -293,7 +320,7 @@ def parse(tokens, code):
             body = []
 
             while i < len(tokens) and tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
-                stmt = parse_assignment() or parse_print() or parse_input() or parse_while()
+                stmt = parse_assignment() or parse_print() or parse_input() or parse_while() or parse_if()
                 if stmt:
                     body.append(stmt)
                 else:
@@ -345,6 +372,114 @@ def parse(tokens, code):
             
             return Node('ArrayCreate', children=[size_expr, value_expr])
         return None
+    
+    def parse_if():
+        nonlocal i
+        if i >= len(tokens):
+            return None
+        if tokens[i][0] == 'ID' and tokens[i][1] == 'аще':
+            line, col = tokens[i][2], tokens[i][3]
+            i += 1  # Пропускаем 'аще'
+            
+            # Разбираем условие
+            condition = parse_condition()
+            if not condition:
+                error_context = get_context(code, line, col)
+                raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось условие после 'аще'\n{error_context}")
+            
+            # Проверяем 'то'
+            if i >= len(tokens) or tokens[i][0] != 'ID' or tokens[i][1] != 'то':
+                error_context = get_context(code, line, col)
+                raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось 'то' после условия\n{error_context}")
+            i += 1  # Пропускаем 'то'
+            
+            # Проверяем 'ухожу я в пляс'
+            if i >= len(tokens) or tokens[i][0] != 'ОТКРЫТАЯФИГУРНАЯСКОБКА':
+                error_context = get_context(code, line, col)
+                raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось 'ухожу я в пляс' после 'то'\n{error_context}")
+            i += 1  # Пропускаем 'ухожу я в пляс'
+            
+            # Разбираем тело 'аще'
+            if_body = []
+            while i < len(tokens) and tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
+                stmt = parse_assignment() or parse_print() or parse_input() or parse_while() or parse_if()
+                if stmt:
+                    if_body.append(stmt)
+                else:
+                    if i < len(tokens):
+                        error_context = get_context(code, tokens[i][2], tokens[i][3])
+                        raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Неожиданный токен '{tokens[i][1]}' в теле 'аще'\n{error_context}")
+                    break
+            if i >= len(tokens) or tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
+                error_context = get_context(code, line, col)
+                raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось 'закончили пляски' после тела 'аще'\n{error_context}")
+            i += 1  # Пропускаем 'закончили пляски'
+            
+            # Проверяем наличие 'аще ли' или 'ино'
+            elif_branches = []
+            while i < len(tokens) and tokens[i][0] == 'ID' and tokens[i][1] == 'аще':
+                i += 1  # Пропускаем 'аще'
+                if i >= len(tokens) or tokens[i][0] != 'ID' or tokens[i][1] != 'ли':
+                    error_context = get_context(code, line, col)
+                    raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось 'ли' после 'аще' для 'аще ли'\n{error_context}")
+                i += 1  # Пропускаем 'ли'
+                elif_condition = parse_condition()
+                if not elif_condition:
+                    error_context = get_context(code, tokens[i-1][2], tokens[i-1][3])
+                    raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось условие после 'аще ли'\n{error_context}")
+                if i >= len(tokens) or tokens[i][0] != 'ID' or tokens[i][1] != 'то':
+                    error_context = get_context(code, line, col)
+                    raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось 'то' после условия в 'аще ли'\n{error_context}")
+                i += 1  # Пропускаем 'то'
+                if i >= len(tokens) or tokens[i][0] != 'ОТКРЫТАЯФИГУРНАЯСКОБКА':
+                    error_context = get_context(code, line, col)
+                    raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось 'ухожу я в пляс' после 'то' в 'аще ли'\n{error_context}")
+                i += 1  # Пропускаем 'ухожу я в пляс'
+                elif_body = []
+                while i < len(tokens) and tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
+                    stmt = parse_assignment() or parse_print() or parse_input() or parse_while() or parse_if()
+                    if stmt:
+                        elif_body.append(stmt)
+                    else:
+                        if i < len(tokens):
+                            error_context = get_context(code, tokens[i][2], tokens[i][3])
+                            raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Неожиданный токен '{tokens[i][1]}' в теле 'аще ли'\n{error_context}")
+                        break
+                if i >= len(tokens) or tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
+                    error_context = get_context(code, line, col)
+                    raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось 'закончили пляски' после тела 'аще ли'\n{error_context}")
+                i += 1  # Пропускаем 'закончили пляски'
+                elif_branches.append((elif_condition, Node('Block', children=elif_body)))
+            
+            # Проверяем 'ино'
+            else_body = []
+            if i < len(tokens) and tokens[i][0] == 'ID' and tokens[i][1] == 'ино':
+                i += 1  # Пропускаем 'ино'
+                if i >= len(tokens) or tokens[i][0] != 'ОТКРЫТАЯФИГУРНАЯСКОБКА':
+                    error_context = get_context(code, line, col)
+                    raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось 'ухожу я в пляс' после 'ино'\n{error_context}")
+                i += 1  # Пропускаем 'ухожу я в пляс'
+                while i < len(tokens) and tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
+                    stmt = parse_assignment() or parse_print() or parse_input() or parse_while() or parse_if()
+                    if stmt:
+                        else_body.append(stmt)
+                    else:
+                        if i < len(tokens):
+                            error_context = get_context(code, tokens[i][2], tokens[i][3])
+                            raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Неожиданный токен '{tokens[i][1]}' в теле 'ино'\n{error_context}")
+                        break
+                if i >= len(tokens) or tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
+                    error_context = get_context(code, line, col)
+                    raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось 'закончили пляски' после тела 'ино'\n{error_context}")
+                i += 1  # Пропускаем 'закончили пляски'
+            
+            return Node('If', children=[
+                condition,
+                Node('Block', children=if_body),
+                Node('ElifBlocks', children=[Node('Elif', children=[cond, block]) for cond, block in elif_branches]),
+                Node('Block', children=else_body)
+            ])
+        return None
 
 
     ast = []
@@ -352,6 +487,10 @@ def parse(tokens, code):
         kind, value, line, col = tokens[i]
         if kind == 'NEWLINE':
             i += 1
+            continue
+        stmt = parse_if()  # Добавляем разбор 'аще'
+        if stmt:
+            ast.append(stmt)
             continue
         stmt = parse_while()
         if stmt:
