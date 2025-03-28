@@ -1,6 +1,7 @@
 import re
 
 def tokenize(code):
+    """Токены для обработки парсером"""
     tokens = []
     token_specification = [
         ('число',   r'\d+(\.\d*)?'),                            # Числа

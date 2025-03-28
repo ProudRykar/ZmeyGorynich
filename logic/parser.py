@@ -52,7 +52,7 @@ def parse(tokens, code):
                     if i >= len(tokens) or tokens[i][1] != ')':
                         error_context = get_context(code, line, col)
                         raise SyntaxError(f"Ожидалась ')' после аргументов функции\n{error_context}")
-                    i += 1  # Move past ')'
+                    i += 1
                     return Node('Call', value=value, children=args, line=line, col=col)
                 elif value == 'созвать_дружину':
                     return parse_array_create()
@@ -254,6 +254,7 @@ def parse(tokens, code):
 
 
     def parse_print():
+        """Парсинг функции молвить (print)"""
         nonlocal i
         if i >= len(tokens):
             return None
@@ -305,6 +306,7 @@ def parse(tokens, code):
 
 
     def parse_input():
+        """Парсинг функции внемли (input)"""
         nonlocal i
         if i >= len(tokens):
             return None
@@ -327,6 +329,7 @@ def parse(tokens, code):
 
 
     def parse_while():
+        """Парсинг цикла покуда (while)"""
         nonlocal i
         if i >= len(tokens):
             return None
@@ -364,6 +367,7 @@ def parse(tokens, code):
 
 
     def parse_array_create():
+        """Парсинг создания массива - созвать_дружину"""
         nonlocal i
         if i >= len(tokens):
             return None
@@ -399,6 +403,7 @@ def parse(tokens, code):
         return None
     
     def parse_if():
+        """Парсинг условий аще - аще ли - ино (if-elif-else)"""
         nonlocal i
         if i >= len(tokens):
             return None
@@ -504,6 +509,7 @@ def parse(tokens, code):
         return None
     
     def parse_function():
+        """Парсинг конструкции функции (def)"""
         nonlocal i
         if i >= len(tokens) or tokens[i][0] != 'DEF':
             return None
@@ -612,6 +618,7 @@ def parse(tokens, code):
                                                         Node('Block', children=body)], type_hint=return_type)
     
     def parse_return():
+        """Парсинг return"""
         nonlocal i
         if i >= len(tokens) or tokens[i][0] != 'RETURN':
             return None
@@ -629,6 +636,7 @@ def parse(tokens, code):
     
 
     def parse_call():
+        """Парсинг вызова функции"""
         nonlocal i
         if i >= len(tokens) or tokens[i][0] != 'ID':
             return None

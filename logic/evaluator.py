@@ -353,7 +353,7 @@ def evaluate(ast, context=None):
                 raise NameError(f"Функция '{node.value}' не определена (строка {node.line}, столбец {node.col})")
             args = [evaluate_expression(arg, context) for arg in node.children]
             if 'builtin' in func:
-                func['builtin'](*args)  # Выполняем без возврата
+                func['builtin'](*args)
             else:
                 call_function(func, args, context)
 

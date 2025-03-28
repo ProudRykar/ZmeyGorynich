@@ -4,6 +4,8 @@ from parser import parse
 from evaluator import Context, evaluate
 
 def run_code(filename):
+    """Программа, интерпретирующая .zg в код python"""
+    
     if not filename.endswith(".zg"):
         print(f"Error: {filename} is not a valid ZmeyGorynich file!")
         return
@@ -14,6 +16,8 @@ def run_code(filename):
     tokens = tokenize(code)
     print("Tokens:", tokens)
     print('')
+
+# Вывод только ошибок ZmeyGorynich при интерпретации, сейчас выводятся ошибки языка и Traceback от python 
 
 #    try:
 #        ast = parse(tokens, code)
