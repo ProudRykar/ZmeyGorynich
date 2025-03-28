@@ -35,10 +35,27 @@ def parse(tokens, code):
                 return node
             
             elif kind == 'ID':
-                if value == 'созвать_дружину':
-                    return parse_array_create()
                 node = Node('ID', value=value)
                 i += 1
+                if i < len(tokens) and tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == '(':
+                    i += 1  # Move past '('
+                    args = []
+                    while i < len(tokens) and not (tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == ')'):
+                        arg = parse_expression()
+                        if arg:
+                            args.append(arg)
+                        if i < len(tokens) and tokens[i][0] == 'COMMA':
+                            i += 1
+                        elif i < len(tokens) and not (tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == ')'):
+                            error_context = get_context(code, line, col)
+                            raise SyntaxError(f"Ожидалась запятая или ')' в аргументах функции\n{error_context}")
+                    if i >= len(tokens) or tokens[i][1] != ')':
+                        error_context = get_context(code, line, col)
+                        raise SyntaxError(f"Ожидалась ')' после аргументов функции\n{error_context}")
+                    i += 1  # Move past ')'
+                    return Node('Call', value=value, children=args, line=line, col=col)
+                elif value == 'созвать_дружину':
+                    return parse_array_create()
                 if i < len(tokens) and tokens[i][0] == 'BRACKET' and tokens[i][1] == '[':
                     i += 1
                     index_node = parse_expression()
@@ -152,7 +169,7 @@ def parse(tokens, code):
             var_node = Node('ID', value=var_name, line=line, col=col)
             i += 1
             type_hint = None
-            if i < len(tokens) and tokens[i][0] == 'TYPE_ANNOTATION':  # 'быти'
+            if i < len(tokens) and tokens[i][0] == 'TYPE_ANNOTATION':
                 i += 1
                 if i < len(tokens) and tokens[i][0] == 'ID':
                     type_parts = []
@@ -245,27 +262,25 @@ def parse(tokens, code):
             i += 1
             
             if i < len(tokens) and tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == '(':
-                i += 1
+                i += 1  # Move past '('
                 expr_nodes = []
-                while i < len(tokens) and not (tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == ')'):
+                if i < len(tokens) and not (tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == ')'):
                     expr_node = parse_expression()
-                    if expr_node:
-                        expr_nodes.append(expr_node)
-
-                    if i < len(tokens):
-                        if tokens[i][0] == 'COMMA':
-                            i += 1
-                        elif tokens[i][0] != 'PARENTHESIS' or tokens[i][1] != ')':
-                            error_context = get_context(code, line, col)
-                            raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась ')' после аргумента в 'молвить'\n{error_context}")
-                    else:
+                    if not expr_node:
                         error_context = get_context(code, line, col)
-                        raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Незакрытая скобка после 'молвить'\n{error_context}")
-                if i < len(tokens) and tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == ')':
-                    i += 1
-                else:
+                        raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось выражение в 'молвить'\n{error_context}")
+                    expr_nodes.append(expr_node)
+                    while i < len(tokens) and tokens[i][0] == 'COMMA':
+                        i += 1
+                        next_expr = parse_expression()
+                        if not next_expr:
+                            error_context = get_context(code, line, col)
+                            raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось выражение после запятой в 'молвить'\n{error_context}")
+                        expr_nodes.append(next_expr)
+                if i >= len(tokens) or tokens[i][0] != 'PARENTHESIS' or tokens[i][1] != ')':
                     error_context = get_context(code, line, col)
-                    raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Незакрытая скобка после 'молвить'\n{error_context}")
+                    raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась ')' после аргументов в 'молвить'\n{error_context}")
+                i += 1
             else:
                 if i >= len(tokens):
                     error_context = get_context(code, line, col)
@@ -483,6 +498,102 @@ def parse(tokens, code):
                 Node('Block', children=else_body)
             ])
         return None
+    
+    def parse_function():
+        nonlocal i
+        if i >= len(tokens) or tokens[i][0] != 'DEF':
+            return None
+        line, col = tokens[i][2], tokens[i][3]
+        i += 1  # Пропускаем 'сотвори'
+
+        if i >= len(tokens) or tokens[i][0] != 'ID':
+            error_context = get_context(code, line, col)
+            raise SyntaxError(f"Ожидалось имя функции после 'сотвори'\n{error_context}")
+        func_name = tokens[i][1]
+        i += 1
+
+        if i >= len(tokens) or tokens[i][0] != 'PARENTHESIS' or tokens[i][1] != '(':
+            error_context = get_context(code, line, col)
+            raise SyntaxError(f"Ожидалось '(' после имени функции\n{error_context}")
+        i += 1
+
+        args = []
+        while i < len(tokens) and not (tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == ')'):
+            if tokens[i][0] == 'ID':
+                args.append(Node('ID', value=tokens[i][1]))
+                i += 1
+                if i < len(tokens) and tokens[i][0] == 'COMMA':
+                    i += 1
+                elif i < len(tokens) and tokens[i][1] != ')':
+                    error_context = get_context(code, line, col)
+                    raise SyntaxError(f"Ожидалась ',' или ')' после аргумента\n{error_context}")
+            else:
+                error_context = get_context(code, line, col)
+                raise SyntaxError(f"Ожидалось имя аргумента (получен {tokens[i][0]}: '{tokens[i][1]}')\n{error_context}")
+        if i >= len(tokens) or tokens[i][1] != ')':
+            error_context = get_context(code, line, col)
+            raise SyntaxError(f"Ожидалось ')' после аргументов\n{error_context}")
+        i += 1
+
+        if i >= len(tokens) or tokens[i][0] != 'RETURN_TYPE':
+            error_context = get_context(code, line, col)
+            raise SyntaxError(f"Ожидалось 'изречет' после аргументов\n{error_context}")
+        i += 1
+
+        if i >= len(tokens) or tokens[i][0] != 'ID':
+            error_context = get_context(code, line, col)
+            raise SyntaxError(f"Ожидался тип возврата после 'изречет'\n{error_context}")
+        return_type = tokens[i][1]
+        type_map = {
+            'цело': 'число:int',
+            'плывун': 'число:float',
+            'строченька': 'строченька',
+            'двосуть': 'двосуть'
+        }
+        if return_type not in type_map:
+            error_context = get_context(code, line, col)
+            raise SyntaxError(f"Неизвестный тип возврата '{return_type}'\n{error_context}")
+        return_type = type_map[return_type]
+        i += 1
+
+        if i >= len(tokens) or tokens[i][0] != 'ОТКРЫТАЯФИГУРНАЯСКОБКА':
+            error_context = get_context(code, line, col)
+            raise SyntaxError(f"Ожидалось 'ухожу я в пляс' после типа возврата\n{error_context}")
+        i += 1
+        body = []
+        while i < len(tokens) and tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
+            stmt = (parse_assignment() or parse_print() or parse_input() or 
+                    parse_while() or parse_if() or parse_function() or parse_return())
+            if stmt:
+                body.append(stmt)
+            else:
+                if i < len(tokens):
+                    error_context = get_context(code, tokens[i][2], tokens[i][3])
+                    raise SyntaxError(f"Неожиданный токен '{tokens[i][1]}' в теле функции\n{error_context}")
+                break
+        if i >= len(tokens):
+            error_context = get_context(code, line, col)
+            raise SyntaxError(f"Ожидалось 'закончили пляски' после тела функции\n{error_context}")
+        i += 1
+
+        return Node('Function', value=func_name, children=[Node('Args', children=args), 
+                                                        Node('Block', children=body)], type_hint=return_type)
+    
+    def parse_return():
+        nonlocal i
+        if i >= len(tokens) or tokens[i][0] != 'RETURN':
+            return None
+        line, col = tokens[i][2], tokens[i][3]
+        i += 1
+
+        expr = parse_expression()
+        if not expr:
+            error_context = get_context(code, line, col)
+            raise SyntaxError(f"Ожидалось выражение после 'возверни'\n{error_context}")
+        
+        if i < len(tokens) and tokens[i][0] == 'GOYDA':
+            i += 1
+        return Node('Return', children=[expr])
 
 
     ast = []
@@ -512,6 +623,10 @@ def parse(tokens, code):
             ast.append(stmt)
             continue
         stmt = parse_array_create()
+        if stmt:
+            ast.append(stmt)
+            continue
+        stmt = parse_function()
         if stmt:
             ast.append(stmt)
             continue

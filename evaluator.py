@@ -5,17 +5,40 @@ from decimal import Decimal, getcontext
 getcontext().prec = 100
 
 class Context:
-    def __init__(self):
+    def __init__(self, parent=None):
         self.variables = {}
         self.type_hints = {}
+        self.functions = {
+            'созвать_дружину': {
+                'args': ['size', 'value'],
+                'body': None,
+                'return_type': 'list:число:int',
+                'builtin': lambda size, value: [value] * int(size)
+            }
+        }
+        self.parent = parent
 
     def get(self, key, default=None):
-        return self.variables.get(key, default)
+        if key in self.variables:
+            return self.variables[key]
+        if self.parent:
+            return self.parent.get(key, default)
+        return default
 
     def set(self, key, value, type_hint=None):
         self.variables[key] = value
         if type_hint:
             self.type_hints[key] = type_hint
+
+    def set_function(self, name, args, body, return_type):
+        self.functions[name] = {'args': args, 'body': body, 'return_type': return_type}
+
+    def get_function(self, name):
+        if name in self.functions:
+            return self.functions[name]
+        if self.parent:
+            return self.parent.get_function(name)
+        return None
 
     def __setitem__(self, key, value):
         self.variables[key] = value
@@ -42,9 +65,12 @@ def evaluate_expression(node, context):
         return node.value
     
     elif node.type == 'ID':
-        if node.value not in context.variables:
-            raise NameError(f"Переменная '{node.value}' не определена (строка {node.line}, столбец {node.col})")
-        return context[node.value]
+        if node.value in context.variables:
+            return context[node.value]
+        func = context.get_function(node.value)
+        if func and hasattr(node, 'args'):
+            return call_function(func, [evaluate_expression(arg, context) for arg in node.args], context)
+        raise NameError(f"Переменная или функция '{node.value}' не определена (строка {node.line}, столбец {node.col})")
     
     elif node.type == 'Array':
         return [evaluate_expression(child, context) for child in node.children]
@@ -54,7 +80,7 @@ def evaluate_expression(node, context):
         index = evaluate_expression(node.children[1], context)
         if not isinstance(array, list):
             raise ValueError(f"Индексация возможна только для массивов, а не для {type(array).__name__} (строка {node.line}, столбец {node.col})")
-        if not isinstance(index, (int, Decimal, Decimal)) or index < 0 or index >= len(array):
+        if not isinstance(index, (int, Decimal)) or index < 0 or index >= len(array):
             raise ValueError(f"Недопустимый индекс {index} для массива длиной {len(array)} (строка {node.line}, столбец {node.col})")
         return array[int(index)]
     
@@ -117,6 +143,15 @@ def evaluate_expression(node, context):
             return int(root_value)
         return root_value
 
+    elif node.type == 'Call':
+        func = context.get_function(node.value)
+        if not func:
+            raise NameError(f"Функция '{node.value}' не определена (строка {node.line}, столбец {node.col})")
+        args = [evaluate_expression(arg, context) for arg in node.children]
+        if 'builtin' in func:
+            return func['builtin'](*args)
+        return call_function(func, args, context)
+
     return None
 
 def evaluate_condition(node, context):
@@ -141,19 +176,21 @@ def check_type(value, type_hint, node):
     if type_hint is None:
         return
     
+    error_loc = f"(строка {node.line if node else '?'}, столбец {node.col if node else '?'})"
+    
     if type_hint == 'строченька':
         if not isinstance(value, str):
-            raise TypeError(f"Значение должно быть строченькой, а не {type(value).__name__} (строка {node.line}, столбец {node.col})")
+            raise TypeError(f"Значение должно быть строченькой, а не {type(value).__name__} {error_loc}")
     
     elif type_hint.startswith('число'):
         if not isinstance(value, (int, float, Decimal)):
-            raise TypeError(f"Значение должно быть числом, а не {type(value).__name__} (строка {node.line}, столбец {node.col})")
+            raise TypeError(f"Значение должно быть числом, а не {type(value).__name__} {error_loc}")
         if ':' in type_hint:
             subtype = type_hint.split(':')[1]
             if subtype == 'int' and not isinstance(value, int):
-                raise TypeError(f"Значение должно быть целым числом (цело), а не {type(value).__name__} (строка {node.line}, столбец {node.col})")
-            elif subtype == 'float' and not isinstance(value, float):
-                raise TypeError(f"Значение должно быть числом с плавающей точкой (плывун), а не {type(value).__name__} (строка {node.line}, столбец {node.col})")
+                raise TypeError(f"Значение должно быть целым числом (цело), а не {type(value).__name__} {error_loc}")
+            elif subtype == 'float' and not isinstance(value, (float, int)):
+                raise TypeError(f"Значение должно быть числом с плавающей точкой (плывун), а не {type(value).__name__} {error_loc}")
     
     elif type_hint.startswith('список '):
         if not isinstance(value, list):
@@ -177,10 +214,22 @@ def check_type(value, type_hint, node):
         if not isinstance(value, bool):
             raise TypeError(f"Значение должно быть двосутью (истина или ложь), а не {type(value).__name__} (строка {node.line}, столбец {node.col})")
 
+def call_function(func, args, parent_context):
+    if len(args) != len(func['args']):
+        raise ValueError(f"Функция ожидает {len(func['args'])} аргументов, получено {len(args)}")
+    local_context = Context(parent=parent_context)
+    for arg_name, arg_value in zip(func['args'], args):
+        local_context.set(arg_name, arg_value)
+    result = evaluate(func['body'], local_context)
+    if result is not None:
+        check_type(result, func['return_type'], None)
+    return result
+
 def evaluate(ast, context=None):
     if context is None:
         context = Context()
 
+    return_value = None
     for node in ast:
         if node.type == 'Print':
             expr_values = [evaluate_expression(child, context) for child in node.children]
@@ -281,3 +330,14 @@ def evaluate(ast, context=None):
                         break
                 if not executed and else_body.children:
                     evaluate(else_body.children, context)
+
+        elif node.type == 'Function':
+            args = [arg.value for arg in node.children[0].children]
+            body = node.children[1].children
+            context.set_function(node.value, args, body, node.type_hint)
+
+        elif node.type == 'Return':
+            return_value = evaluate_expression(node.children[0], context)
+            return return_value
+
+    return return_value
