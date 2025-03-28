@@ -150,7 +150,9 @@ def evaluate_expression(node, context):
         args = [evaluate_expression(arg, context) for arg in node.children]
         if 'builtin' in func:
             return func['builtin'](*args)
-        return call_function(func, args, context)
+        else:
+            return call_function(func, args, context)
+    raise ValueError(f"Неизвестный тип выражения: {node.type}")
 
     return None
 
@@ -165,6 +167,7 @@ def evaluate_condition(node, context):
             '>=': lambda x, y: x >= y,
             '==': lambda x, y: x == y,
             '!=': lambda x, y: x != y,
+            '===': lambda x, y: x == y,
         }
         operation = ops.get(node.op)
         if operation:
@@ -220,10 +223,7 @@ def call_function(func, args, parent_context):
     local_context = Context(parent=parent_context)
     for arg_name, arg_value in zip(func['args'], args):
         local_context.set(arg_name, arg_value)
-    result = evaluate(func['body'], local_context)
-    if result is not None:
-        check_type(result, func['return_type'], None)
-    return result
+    return evaluate(func['body'].children, local_context)
 
 def evaluate(ast, context=None):
     if context is None:
@@ -309,7 +309,9 @@ def evaluate(ast, context=None):
             condition_node = node.children[0]
             body_node = node.children[1]
             while evaluate_condition(condition_node, context):
-                evaluate(body_node.children, context)
+                result = evaluate(body_node.children, context)
+                if result is not None:
+                    return result
 
         elif node.type == 'If':
             if_condition = node.children[0]
@@ -318,26 +320,41 @@ def evaluate(ast, context=None):
             else_body = node.children[3]
             
             if evaluate_condition(if_condition, context):
-                evaluate(if_body.children, context)
+                result = evaluate(if_body.children, context)
+                if result is not None:
+                    return result
             else:
                 executed = False
                 for elif_node in elif_blocks:
                     elif_condition = elif_node.children[0]
                     elif_body = elif_node.children[1]
                     if evaluate_condition(elif_condition, context):
-                        evaluate(elif_body.children, context)
+                        result = evaluate(elif_body.children, context)
+                        if result is not None:
+                            return result
                         executed = True
                         break
                 if not executed and else_body.children:
-                    evaluate(else_body.children, context)
+                    result = evaluate(else_body.children, context)
+                    if result is not None:
+                        return result
 
         elif node.type == 'Function':
             args = [arg.value for arg in node.children[0].children]
-            body = node.children[1].children
+            body = node.children[1]
             context.set_function(node.value, args, body, node.type_hint)
 
         elif node.type == 'Return':
-            return_value = evaluate_expression(node.children[0], context)
-            return return_value
+            return evaluate_expression(node.children[0], context)
+
+        elif node.type == 'Call':
+            func = context.get_function(node.value)
+            if not func:
+                raise NameError(f"Функция '{node.value}' не определена (строка {node.line}, столбец {node.col})")
+            args = [evaluate_expression(arg, context) for arg in node.children]
+            if 'builtin' in func:
+                func['builtin'](*args)  # Выполняем без возврата
+            else:
+                call_function(func, args, context)
 
     return return_value

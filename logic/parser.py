@@ -224,7 +224,7 @@ def parse(tokens, code):
                 i += 1
                 expr_node = parse_expression()
                 if expr_node and expr_node.type == 'число' and type_hint:
-                    expr_node.type_hint = type_hint  # Передаём type_hint в узел числа
+                    expr_node.type_hint = type_hint
                 if i < len(tokens) and tokens[i][0] == 'GOYDA':
                     i += 1
                     return Node('Assignment', children=[var_node, expr_node], type_hint=type_hint, line=line, col=col)
@@ -262,7 +262,7 @@ def parse(tokens, code):
             i += 1
             
             if i < len(tokens) and tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == '(':
-                i += 1  # Move past '('
+                i += 1
                 expr_nodes = []
                 if i < len(tokens) and not (tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == ')'):
                     expr_node = parse_expression()
@@ -344,7 +344,8 @@ def parse(tokens, code):
             body = []
 
             while i < len(tokens) and tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
-                stmt = parse_assignment() or parse_print() or parse_input() or parse_while() or parse_if()
+                stmt = (parse_assignment() or parse_print() or parse_input() or 
+                    parse_while() or parse_if() or parse_return())
                 if stmt:
                     body.append(stmt)
                 else:
@@ -422,7 +423,8 @@ def parse(tokens, code):
             
             if_body = []
             while i < len(tokens) and tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
-                stmt = parse_assignment() or parse_print() or parse_input() or parse_while() or parse_if()
+                stmt = (parse_assignment() or parse_print() or parse_input() or 
+                    parse_while() or parse_if() or parse_return())
                 if stmt:
                     if_body.append(stmt)
                 else:
@@ -456,7 +458,8 @@ def parse(tokens, code):
                 i += 1
                 elif_body = []
                 while i < len(tokens) and tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
-                    stmt = parse_assignment() or parse_print() or parse_input() or parse_while() or parse_if()
+                    stmt = (parse_assignment() or parse_print() or parse_input() or 
+                    parse_while() or parse_if() or parse_return())
                     if stmt:
                         elif_body.append(stmt)
                     else:
@@ -478,7 +481,8 @@ def parse(tokens, code):
                     raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось 'ухожу я в пляс' после 'ино'\n{error_context}")
                 i += 1
                 while i < len(tokens) and tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
-                    stmt = parse_assignment() or parse_print() or parse_input() or parse_while() or parse_if()
+                    stmt = (parse_assignment() or parse_print() or parse_input() or 
+                    parse_while() or parse_if() or parse_return())
                     if stmt:
                         else_body.append(stmt)
                     else:
@@ -504,7 +508,7 @@ def parse(tokens, code):
         if i >= len(tokens) or tokens[i][0] != 'DEF':
             return None
         line, col = tokens[i][2], tokens[i][3]
-        i += 1  # Пропускаем 'сотвори'
+        i += 1
 
         if i >= len(tokens) or tokens[i][0] != 'ID':
             error_context = get_context(code, line, col)
@@ -520,16 +524,43 @@ def parse(tokens, code):
         args = []
         while i < len(tokens) and not (tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == ')'):
             if tokens[i][0] == 'ID':
-                args.append(Node('ID', value=tokens[i][1]))
+                arg_name = tokens[i][1]
+                arg_line, arg_col = tokens[i][2], tokens[i][3]
                 i += 1
+                type_hint = None
+                if i < len(tokens) and tokens[i][0] == 'TYPE_ANNOTATION' and tokens[i][1] == 'быти':
+                    i += 1
+                    if i >= len(tokens) or tokens[i][0] != 'ID':
+                        error_context = get_context(code, arg_line, arg_col)
+                        raise SyntaxError(f"Ожидался тип после 'быти'\n{error_context}")
+                    type_parts = []
+                    while (i < len(tokens) and tokens[i][0] == 'ID' and 
+                        tokens[i][1] not in ('=', 'гойда', ')', ',')):
+                        type_parts.append(tokens[i][1])
+                        i += 1
+                    type_name = ' '.join(type_parts)
+                    type_map = {
+                        'цело': 'число:int',
+                        'плывун': 'число:float',
+                        'строченька': 'строченька',
+                        'двосуть': 'двосуть'
+                    }
+                    type_hint = type_map.get(type_name)
+                    if type_hint is None:
+                        error_context = get_context(code, arg_line, arg_col)
+                        raise SyntaxError(f"Неизвестный тип '{type_name}'\n{error_context}")
+                
+                args.append(Node('Arg', value=arg_name, type_hint=type_hint))
+                
                 if i < len(tokens) and tokens[i][0] == 'COMMA':
                     i += 1
                 elif i < len(tokens) and tokens[i][1] != ')':
-                    error_context = get_context(code, line, col)
+                    error_context = get_context(code, arg_line, arg_col)
                     raise SyntaxError(f"Ожидалась ',' или ')' после аргумента\n{error_context}")
             else:
                 error_context = get_context(code, line, col)
                 raise SyntaxError(f"Ожидалось имя аргумента (получен {tokens[i][0]}: '{tokens[i][1]}')\n{error_context}")
+        
         if i >= len(tokens) or tokens[i][1] != ')':
             error_context = get_context(code, line, col)
             raise SyntaxError(f"Ожидалось ')' после аргументов\n{error_context}")
@@ -560,6 +591,7 @@ def parse(tokens, code):
             error_context = get_context(code, line, col)
             raise SyntaxError(f"Ожидалось 'ухожу я в пляс' после типа возврата\n{error_context}")
         i += 1
+        
         body = []
         while i < len(tokens) and tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
             stmt = (parse_assignment() or parse_print() or parse_input() or 
@@ -594,6 +626,43 @@ def parse(tokens, code):
         if i < len(tokens) and tokens[i][0] == 'GOYDA':
             i += 1
         return Node('Return', children=[expr])
+    
+
+    def parse_call():
+        nonlocal i
+        if i >= len(tokens) or tokens[i][0] != 'ID':
+            return None
+        func_name = tokens[i][1]
+        line, col = tokens[i][2], tokens[i][3]
+        i += 1
+        
+        if i >= len(tokens) or tokens[i][0] != 'PARENTHESIS' or tokens[i][1] != '(':
+            i -= 1
+            return None
+        
+        i += 1
+        args = []
+        while i < len(tokens) and not (tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == ')'):
+            arg = parse_expression()
+            if arg:
+                args.append(arg)
+            if i < len(tokens) and tokens[i][0] == 'COMMA':
+                i += 1
+            elif i < len(tokens) and not (tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == ')'):
+                error_context = get_context(code, line, col)
+                raise SyntaxError(f"Ожидалась запятая или ')' в аргументах функции\n{error_context}")
+        
+        if i >= len(tokens) or tokens[i][1] != ')':
+            error_context = get_context(code, line, col)
+            raise SyntaxError(f"Ожидалась ')' после аргументов функции\n{error_context}")
+        i += 1
+        
+        if i >= len(tokens) or tokens[i][0] != 'GOYDA':
+            error_context = get_context(code, line, col)
+            raise SyntaxError(f"Ожидалась 'гойда' после вызова функции\n{error_context}")
+        i += 1
+        
+        return Node('Call', value=func_name, children=args, line=line, col=col)
 
 
     ast = []
@@ -627,6 +696,10 @@ def parse(tokens, code):
             ast.append(stmt)
             continue
         stmt = parse_function()
+        if stmt:
+            ast.append(stmt)
+            continue
+        stmt = parse_call()
         if stmt:
             ast.append(stmt)
             continue

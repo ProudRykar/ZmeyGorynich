@@ -9,5 +9,6 @@ class Node:
         self.col = col    # Номер столбца
 
     def __repr__(self):
-        return (f"<node.Node type={self.type}, value={self.value}, op={self.op}, "
+        op_str = repr(self.op) if self.op is not None else 'None'
+        return (f"<node.Node type={self.type}, value={self.value}, op={op_str}, "
                 f"type_hint={self.type_hint}, children={self.children}, line={self.line}, col={self.col}>")
