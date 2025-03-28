@@ -8,7 +8,7 @@ def run_code(filename):
         print(f"Error: {filename} is not a valid ZmeyGorynich file!")
         return
 
-    with open(filename, 'r') as f:
+    with open(filename, 'r', encoding='utf-8') as f:
         code = f.read()
 
     tokens = tokenize(code)
@@ -16,23 +16,24 @@ def run_code(filename):
     print('')
 
 #    try:
-#        ast = parse(tokens, code)  # Передаём code в parse
-#        print("AST:", ast)  # Вывод AST для отладки
+#        ast = parse(tokens, code)
+#        print("AST:", ast)
 #        print('')
 #
 #        context = {}
 #        print('Результат программы:')
 #        evaluate(ast, context)
 #    except SyntaxError as e:
-#        # Выводим только сообщение об ошибке языка, без стека вызовов
+#
 #        print(str(e))
-#        sys.exit(1)  # Завершаем выполнение с кодом ошибки
+#        sys.exit(1)
 
     ast = parse(tokens, code)
     print("AST:", ast)
     print('')
 
-    context = Context()  # Убедимся, что это экземпляр Context    print('Результат программы: ')
+    context = Context()
+    print('Результат программы: ')
     evaluate(ast, context)
 
 if __name__ == "__main__":

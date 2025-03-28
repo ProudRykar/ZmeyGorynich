@@ -23,6 +23,9 @@
         },
         {
             "include": "#goyda"
+        },
+        {
+            "include": "#comments"
         }
     ],
     "repository": {
@@ -118,6 +121,18 @@
                     "match": "\\bгойда\\b",
                     "settings": {
                         "foreground": "#5C6370",
+                        "fontStyle": "italic"
+                    }
+                }
+            ]
+        },
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.line.number-sign.zmeygorynich",
+                    "match": "#.*$",
+                    "settings": {
+                        "foreground": "#6A9955",
                         "fontStyle": "italic"
                     }
                 }

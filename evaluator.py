@@ -1,9 +1,13 @@
+import decimal
 import math
+from decimal import Decimal, getcontext
+
+getcontext().prec = 100
 
 class Context:
     def __init__(self):
-        self.variables = {}  # Хранит значения переменных
-        self.type_hints = {}  # Хранит типы переменных
+        self.variables = {}
+        self.type_hints = {}
 
     def get(self, key, default=None):
         return self.variables.get(key, default)
@@ -24,8 +28,18 @@ def evaluate_expression(node, context):
         return node.value.strip('"')
     
     elif node.type == 'число':
-        # node.value — это строка, например "5" или "5.5"
-        return float(node.value) if '.' in node.value else int(node.value)
+        value = node.value
+        if hasattr(node, 'type_hint') and node.type_hint:
+            if node.type_hint.startswith('decimal:'):
+                return Decimal(value)
+            elif node.type_hint == 'число:int':
+                return int(value)
+            elif node.type_hint == 'число:float':
+                return float(value)
+        return Decimal(value) if '.' in value else int(value)
+    
+    elif node.type == 'двосуть':
+        return node.value
     
     elif node.type == 'ID':
         if node.value not in context.variables:
@@ -40,20 +54,16 @@ def evaluate_expression(node, context):
         index = evaluate_expression(node.children[1], context)
         if not isinstance(array, list):
             raise ValueError(f"Индексация возможна только для массивов, а не для {type(array).__name__} (строка {node.line}, столбец {node.col})")
-        if not isinstance(index, (int, float)) or index < 0 or index >= len(array):
+        if not isinstance(index, (int, Decimal, Decimal)) or index < 0 or index >= len(array):
             raise ValueError(f"Недопустимый индекс {index} для массива длиной {len(array)} (строка {node.line}, столбец {node.col})")
         return array[int(index)]
-    
-    elif node.type == 'ArrayAssignment':
-        raise ValueError("ArrayAssignment не является выражением и не может быть использовано в evaluate_expression")
     
     elif node.type == 'ArrayCreate':
         size = evaluate_expression(node.children[0], context)
         value = evaluate_expression(node.children[1], context)
-        if not isinstance(size, (int, float)) or size < 0:
+        if not isinstance(size, (int, float, Decimal)) or size < 0:
             raise ValueError(f"Размер массива должен быть неотрицательным числом, а не {size} (строка {node.line}, столбец {node.col})")
         array = [value] * int(size)
-        # Проверка типа элементов массива, если он указан
         if hasattr(node, 'type_hint') and node.type_hint:
             for item in array:
                 check_type(item, node.type_hint, node)
@@ -66,14 +76,20 @@ def evaluate_expression(node, context):
         if node.op == '+':
             if isinstance(left, str) or isinstance(right, str):
                 return str(left) + str(right)
-            if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+            if isinstance(left, (int, float, Decimal)) and isinstance(right, (int, float, Decimal)):
+                if isinstance(left, Decimal) or isinstance(right, Decimal):
+                    return Decimal(str(left)) + Decimal(str(right))
                 return left + right
             if isinstance(left, list) and isinstance(right, list):
                 return left + right
             raise ValueError(f"Нельзя сложить {type(left).__name__} и {type(right).__name__} с помощью '+' (строка {node.line}, столбец {node.col})")
         
-        if not (isinstance(left, (int, float)) and isinstance(right, (int, float))):
+        if not (isinstance(left, (int, float, Decimal)) and isinstance(right, (int, float, Decimal))):
             raise ValueError(f"Операция '{node.op}' поддерживается только для чисел, а не для {type(left).__name__} и {type(right).__name__} (строка {node.line}, столбец {node.col})")
+        
+        if isinstance(left, Decimal) or isinstance(right, Decimal):
+            left = Decimal(str(left))
+            right = Decimal(str(right))
         
         ops = {
             '-': lambda x, y: x - y,
@@ -89,12 +105,15 @@ def evaluate_expression(node, context):
     
     elif node.type == 'RootOp':
         value = evaluate_expression(node.children[0], context)
-        if not isinstance(value, (int, float)):
+        if not isinstance(value, (int, float, Decimal)):
             raise ValueError(f"Корень можно извлечь только из числа, а не из {type(value).__name__} (строка {node.line}, столбец {node.col})")
         if value < 0:
             raise ValueError(f"Корень нельзя извлечь из отрицательного числа {value} (строка {node.line}, столбец {node.col})")
-        root_value = math.sqrt(value)
-        if root_value.is_integer():
+        if isinstance(value, Decimal):
+            root_value = Decimal(str(value)).sqrt()
+        else:
+            root_value = math.sqrt(value)
+        if isinstance(root_value, float) and root_value.is_integer():
             return int(root_value)
         return root_value
 
@@ -119,26 +138,44 @@ def evaluate_condition(node, context):
     return False
 
 def check_type(value, type_hint, node):
+    if type_hint is None:
+        return
+    
     if type_hint == 'строченька':
         if not isinstance(value, str):
             raise TypeError(f"Значение должно быть строченькой, а не {type(value).__name__} (строка {node.line}, столбец {node.col})")
+    
     elif type_hint.startswith('число'):
-        if not isinstance(value, (int, float)):
+        if not isinstance(value, (int, float, Decimal)):
             raise TypeError(f"Значение должно быть числом, а не {type(value).__name__} (строка {node.line}, столбец {node.col})")
-        # Проверяем подтип числа, если он указан
         if ':' in type_hint:
             subtype = type_hint.split(':')[1]
             if subtype == 'int' and not isinstance(value, int):
-                raise TypeError(f"Значение должно быть целым числом (int), а не {type(value).__name__} (строка {node.line}, столбец {node.col})")
+                raise TypeError(f"Значение должно быть целым числом (цело), а не {type(value).__name__} (строка {node.line}, столбец {node.col})")
             elif subtype == 'float' and not isinstance(value, float):
-                raise TypeError(f"Значение должно быть числом с плавающей точкой (float), а не {type(value).__name__} (строка {node.line}, столбец {node.col})")
+                raise TypeError(f"Значение должно быть числом с плавающей точкой (плывун), а не {type(value).__name__} (строка {node.line}, столбец {node.col})")
+    
     elif type_hint.startswith('список '):
         if not isinstance(value, list):
             raise TypeError(f"Значение должно быть списком, а не {type(value).__name__} (строка {node.line}, столбец {node.col})")
         element_type = type_hint.split(' ')[1]
         for item in value:
             check_type(item, element_type, node)
-    return True
+    
+    elif type_hint.startswith('list:'):
+        if not isinstance(value, list):
+            raise TypeError(f"Значение должно быть списком, а не {type(value).__name__} (строка {node.line}, столбец {node.col})")
+        element_type = type_hint.split(':', 1)[1]
+        for item in value:
+            check_type(item, element_type, node)
+    
+    elif type_hint.startswith('decimal:'):
+        if not isinstance(value, Decimal):
+            raise TypeError(f"Значение должно быть числом высокой точности (decimal), а не {type(value).__name__} (строка {node.line}, столбец {node.col})")
+    
+    elif type_hint == 'двосуть':
+        if not isinstance(value, bool):
+            raise TypeError(f"Значение должно быть двосутью (истина или ложь), а не {type(value).__name__} (строка {node.line}, столбец {node.col})")
 
 def evaluate(ast, context=None):
     if context is None:
@@ -147,8 +184,24 @@ def evaluate(ast, context=None):
     for node in ast:
         if node.type == 'Print':
             expr_values = [evaluate_expression(child, context) for child in node.children]
-            result = ''.join(str(val) for val in expr_values)
-            print(result)
+            formatted_values = []
+            for val in expr_values:
+                if isinstance(val, bool):
+                    formatted_values.append('Истина' if val else 'Ложь')
+                elif isinstance(val, Decimal):
+                    type_hint = None
+                    if node.children and node.children[0].type == 'ID':
+                        type_hint = context.type_hints.get(node.children[0].value)
+                    if type_hint and type_hint.startswith('decimal:'):
+                        prec = int(type_hint.split(':')[1])
+                        with decimal.localcontext() as ctx:
+                            ctx.prec = max(prec, len(str(val).split('.')[1]) if '.' in str(val) else 0) + 10
+                            formatted_values.append(str(val.quantize(Decimal('0.' + '0' * prec))))
+                    else:
+                        formatted_values.append(str(val))
+                else:
+                    formatted_values.append(str(val))
+            print(''.join(formatted_values))
 
         elif node.type == 'Input':
             var_name = node.children[0].value
@@ -159,17 +212,28 @@ def evaluate(ast, context=None):
                 try:
                     value = float(user_input)
                 except ValueError:
-                    value = user_input
-            # Проверка типа, если он указан
+                    if user_input in ('истина', 'ложь'):
+                        value = True if user_input == 'истина' else False
+                    else:
+                        value = user_input
             if hasattr(node, 'type_hint') and node.type_hint:
+                if node.type_hint.startswith('decimal:'):
+                    prec = int(node.type_hint.split(':')[1])
+                    value = Decimal(user_input).quantize(Decimal(f'0.{"0" * prec}'))
                 check_type(value, node.type_hint, node)
             context.set(var_name, value, node.type_hint)
 
         elif node.type == 'Assignment':
             var_name = node.children[0].value
             expr_value = evaluate_expression(node.children[1], context)
-            # Проверка типа, если он указан
             if hasattr(node, 'type_hint') and node.type_hint:
+                if node.type_hint.startswith('decimal:'):
+                    prec = int(node.type_hint.split(':')[1])
+                    getcontext().prec = prec
+                    if isinstance(expr_value, (int, float, str)):
+                        expr_value = Decimal(str(expr_value))
+                    elif not isinstance(expr_value, Decimal):
+                        raise TypeError(f"Ожидалось число для типа '{node.type_hint}', получен {type(expr_value).__name__} (строка {node.line}, столбец {node.col})")
                 check_type(expr_value, node.type_hint, node)
             context.set(var_name, expr_value, node.type_hint)
 
@@ -179,13 +243,16 @@ def evaluate(ast, context=None):
             value = evaluate_expression(node.children[2], context)
             if var_name not in context.variables or not isinstance(context[var_name], list):
                 raise ValueError(f"{var_name} не является массивом (строка {node.line}, столбец {node.col})")
-            if not isinstance(index, (int, float)) or index < 0 or index >= len(context[var_name]):
+            if not isinstance(index, (int, float, Decimal)) or index < 0 or index >= len(context[var_name]):
                 raise ValueError(f"Недопустимый индекс {index} для массива длиной {len(context[var_name])} (строка {node.line}, столбец {node.col})")
-            # Проверка типа элемента массива, если массив типизирован
             if var_name in context.type_hints:
                 type_hint = context.type_hints[var_name]
                 if type_hint.startswith('список '):
                     element_type = type_hint.split(' ')[1]
+                    if element_type.startswith('decimal:'):
+                        prec = int(element_type.split(':')[1])
+                        getcontext().prec = prec
+                        value = Decimal(str(value))
                     check_type(value, element_type, node)
             context[var_name][int(index)] = value
 
