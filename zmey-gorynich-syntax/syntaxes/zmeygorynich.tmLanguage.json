@@ -10,6 +10,9 @@
             "include": "#keywords"
         },
         {
+            "include": "#type_annotations"
+        },
+        {
             "include": "#operators"
         },
         {
@@ -53,9 +56,20 @@
             "patterns": [
                 {
                     "name": "keyword.control.zmeygorynich",
-                    "match": "\\b(покуда|молвить|внемли|ино|аще|ли|то)\\b",
+                    "match": "\\b(покуда|молвить|внемли|ино|аще|ли|то|дважды|трижды|четырежды|пятьжды|шестьжды|семьжды|осьмьжды|девятьжды|десятьжды|стожды|сотвори|изречет)\\b",
                     "settings": {
                         "foreground": "#FFCB6B"
+                    }
+                }
+            ]
+        },
+        "type_annotations": {
+            "patterns": [
+                {
+                    "match": "\\b(быти)\\b\\s+\\b(цело|плывун|строченька|двосуть|плывун малый точный|плывун великий|плывун звездный|список цело|список плывун|список строченька|список двосуть)\\b",
+                    "captures": {
+                        "1": { "name": "keyword.type.annotation.zmeygorynich" },
+                        "2": { "name": "storage.type.zmeygorynich" }
                     }
                 }
             ]
