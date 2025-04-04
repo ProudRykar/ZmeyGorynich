@@ -741,6 +741,25 @@ def parse(tokens, code):
             return Node('FixedLoop', value=iterations, children=[Node('Block', children=body)])
         return None
 
+    def parse_import():
+        """Парсинг конструкции импорта (взять из "файл.zg")"""
+        nonlocal i
+        if i >= len(tokens):
+            return None
+        if tokens[i][0] == 'IMPORT':
+            line, col = tokens[i][2], tokens[i][3]
+            i += 1
+            if i >= len(tokens) or tokens[i][0] != 'строченька':
+                error_context = get_context(code, line, col)
+                raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось имя файла в кавычках после 'взять из'\n{error_context}")
+            filename = tokens[i][1].strip('"')
+            i += 1
+            if i >= len(tokens) or tokens[i][0] != 'GOYDA':
+                error_context = get_context(code, line, col)
+                raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась 'гойда' после имени файла в 'взять из'\n{error_context}")
+            i += 1
+            return Node('Import', value=filename, line=line, col=col)
+        return None
 
     ast = []
     while i < len(tokens):
@@ -781,6 +800,10 @@ def parse(tokens, code):
             ast.append(stmt)
             continue
         stmt = parse_fixed_loop()
+        if stmt:
+            ast.append(stmt)
+            continue
+        stmt = parse_import()
         if stmt:
             ast.append(stmt)
             continue

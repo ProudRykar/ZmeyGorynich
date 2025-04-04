@@ -38,7 +38,7 @@ def run_code(filename):
 
     context = Context()
     print('Результат программы: ')
-    evaluate(ast, context)
+    evaluate(ast, context, current_file=filename)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

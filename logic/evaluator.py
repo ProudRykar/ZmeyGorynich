@@ -1,6 +1,9 @@
+from parser import parse
 import decimal
 import math
 from decimal import Decimal, getcontext
+import os
+from lexer import tokenize
 
 getcontext().prec = 100
 
@@ -225,7 +228,7 @@ def call_function(func, args, parent_context):
         local_context.set(arg_name, arg_value)
     return evaluate(func['body'].children, local_context)
 
-def evaluate(ast, context=None):
+def evaluate(ast, context=None, current_file=None):
     if context is None:
         context = Context()
 
@@ -364,5 +367,30 @@ def evaluate(ast, context=None):
                 result = evaluate(body_node.children, context)
                 if result is not None:
                     return result
+                
+        elif node.type == 'Import':
+            filename = node.value
+            if not filename.endswith('.zg'):
+                raise ValueError(f"Импортируемый файл должен иметь расширение .zg, получено '{filename}' (строка {node.line}, столбец {node.col})")
+
+            file_to_import = filename
+            if current_file:
+                current_dir = os.path.dirname(os.path.abspath(current_file))
+                possible_path = os.path.join(current_dir, filename)
+                if os.path.exists(possible_path):
+                    file_to_import = possible_path
+
+            try:
+                with open(file_to_import, 'r', encoding='utf-8') as f:
+                    imported_code = f.read()
+            except FileNotFoundError:
+                raise FileNotFoundError(f"Файл '{filename}' не найден (строка {node.line}, столбец {node.col})")
+            except Exception as e:
+                raise RuntimeError(f"Ошибка при чтении файла '{filename}': {str(e)} (строка {node.line}, столбец {node.col})")
+
+            imported_tokens = tokenize(imported_code)
+            imported_ast = parse(imported_tokens, imported_code)
+
+            evaluate(imported_ast, context, current_file=file_to_import)
 
     return return_value
