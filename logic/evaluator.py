@@ -357,4 +357,12 @@ def evaluate(ast, context=None):
             else:
                 call_function(func, args, context)
 
+        elif node.type == 'FixedLoop':
+            iterations = node.value
+            body_node = node.children[0]
+            for _ in range(iterations):
+                result = evaluate(body_node.children, context)
+                if result is not None:
+                    return result
+
     return return_value

@@ -20,9 +20,11 @@ def get_context(code, line_num, col):
 def parse(tokens, code):
     i = 0
 
+
     def parse_expression():
         nonlocal i
         
+
         def parse_term():
             nonlocal i
             if i >= len(tokens):
@@ -38,7 +40,7 @@ def parse(tokens, code):
                 node = Node('ID', value=value)
                 i += 1
                 if i < len(tokens) and tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == '(':
-                    i += 1  # Move past '('
+                    i += 1
                     args = []
                     while i < len(tokens) and not (tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == ')'):
                         arg = parse_expression()
@@ -110,6 +112,7 @@ def parse(tokens, code):
                 return expr_node
             return None
 
+
         def parse_factor():
             nonlocal i
             left = parse_term()
@@ -125,6 +128,7 @@ def parse(tokens, code):
                 left = Node('BinaryOp', op=op, children=[left, right])
             return left
 
+
         def parse_mul_div():
             nonlocal i
             left = parse_factor()
@@ -139,6 +143,7 @@ def parse(tokens, code):
                     raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось выражение после '{op}'\n{error_context}")
                 left = Node('BinaryOp', op=op, children=[left, right])
             return left
+
 
         def parse_add_sub():
             nonlocal i
@@ -348,7 +353,7 @@ def parse(tokens, code):
 
             while i < len(tokens) and tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
                 stmt = (parse_assignment() or parse_print() or parse_input() or 
-                    parse_while() or parse_if() or parse_return())
+                    parse_while() or parse_if() or parse_return() or parse_fixed_loop())
                 if stmt:
                     body.append(stmt)
                 else:
@@ -402,6 +407,7 @@ def parse(tokens, code):
             return Node('ArrayCreate', children=[size_expr, value_expr])
         return None
     
+
     def parse_if():
         """Парсинг условий аще - аще ли - ино (if-elif-else)"""
         nonlocal i
@@ -487,7 +493,7 @@ def parse(tokens, code):
                 i += 1
                 while i < len(tokens) and tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
                     stmt = (parse_assignment() or parse_print() or parse_input() or 
-                    parse_while() or parse_if() or parse_return())
+                    parse_while() or parse_if() or parse_return() or parse_fixed_loop())
                     if stmt:
                         else_body.append(stmt)
                     else:
@@ -508,6 +514,7 @@ def parse(tokens, code):
             ])
         return None
     
+
     def parse_function():
         """Парсинг конструкции функции (def)"""
         nonlocal i
@@ -601,7 +608,7 @@ def parse(tokens, code):
         body = []
         while i < len(tokens) and tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
             stmt = (parse_assignment() or parse_print() or parse_input() or 
-                    parse_while() or parse_if() or parse_function() or parse_return())
+                    parse_while() or parse_if() or parse_function() or parse_return() or parse_fixed_loop())
             if stmt:
                 body.append(stmt)
             else:
@@ -617,6 +624,7 @@ def parse(tokens, code):
         return Node('Function', value=func_name, children=[Node('Args', children=args), 
                                                         Node('Block', children=body)], type_hint=return_type)
     
+
     def parse_return():
         """Парсинг return"""
         nonlocal i
@@ -671,6 +679,67 @@ def parse(tokens, code):
         i += 1
         
         return Node('Call', value=func_name, children=args, line=line, col=col)
+    
+
+    def parse_fixed_loop():
+        """Парсинг фиксированных циклов Дважды, Трижды, Четырежды"""
+        nonlocal i
+        if i >= len(tokens):
+            return None
+        
+        loop_types = {
+            'дважды': 2,
+            'трижды': 3,
+            'четырежды': 4,
+            'пятьжды': 5,
+            'шестьжды': 6,
+            'семьжды': 7,
+            'осьмьжды': 8,
+            'девятьжды': 9,
+            'десятьжды': 10,
+            'стожды': 100,
+        }
+        
+        if tokens[i][0] == 'ID' and tokens[i][1].lower() in loop_types:
+            loop_name = tokens[i][1].lower()
+            iterations = loop_types[loop_name]
+            line, col = tokens[i][2], tokens[i][3]
+            i += 1
+            
+            body = []
+            
+            # Блок кода в фигурных скобках
+            if i < len(tokens) and tokens[i][0] == 'ОТКРЫТАЯФИГУРНАЯСКОБКА':
+                i += 1
+                while i < len(tokens) and tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
+                    stmt = (parse_assignment() or parse_print() or parse_input() or 
+                            parse_while() or parse_if() or parse_fixed_loop() or parse_return() or parse_call())
+                    if stmt:
+                        body.append(stmt)
+                    else:
+                        if i < len(tokens):
+                            error_context = get_context(code, tokens[i][2], tokens[i][3])
+                            raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Неожиданный токен '{tokens[i][1]}' в теле '{loop_name}'\n{error_context}")
+                        else:
+                            error_context = get_context(code, line, col)
+                            raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось 'закончили пляски' после тела '{loop_name}'\n{error_context}")
+                if i >= len(tokens):
+                    error_context = get_context(code, line, col)
+                    raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось 'закончили пляски' после тела '{loop_name}'\n{error_context}")
+                i += 1
+            
+            # Одиночный оператор
+            else:
+                stmt = (parse_assignment() or parse_print() or parse_input() or 
+                        parse_while() or parse_if() or parse_fixed_loop() or parse_return() or parse_call())
+                if stmt:
+                    body.append(stmt)
+                else:
+                    error_context = get_context(code, line, col)
+                    raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидался оператор после '{loop_name}'\n{error_context}")
+            
+            return Node('FixedLoop', value=iterations, children=[Node('Block', children=body)])
+        return None
 
 
     ast = []
@@ -708,6 +777,10 @@ def parse(tokens, code):
             ast.append(stmt)
             continue
         stmt = parse_call()
+        if stmt:
+            ast.append(stmt)
+            continue
+        stmt = parse_fixed_loop()
         if stmt:
             ast.append(stmt)
             continue
