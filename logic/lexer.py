@@ -43,5 +43,3 @@ def tokenize(code):
             tokens.append((kind, value, line_num, column))
     
     return tokens
-
-print("ᚠᚢᚦᚨᛚᛏ")

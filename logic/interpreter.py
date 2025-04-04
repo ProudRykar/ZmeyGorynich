@@ -24,7 +24,7 @@ def run_code(filename):
 #        print("AST:", ast)
 #        print('')
 #
-#        context = {}
+#        context = Context()
 #        print('Результат программы:')
 #        evaluate(ast, context)
 #    except SyntaxError as e:
