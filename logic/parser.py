@@ -32,13 +32,23 @@ def parse(tokens, code):
             kind, value, line, col = tokens[i]
             
             if kind == 'строченька':
-                node = Node('строченька', value=value)
+                node = Node('строченька', value=value, line=line, col=col)
                 i += 1
                 return node
             
             elif kind == 'ID':
-                node = Node('ID', value=value)
+                id_value = value
+                id_line, id_col = line, col
                 i += 1
+                while i < len(tokens) and tokens[i][0] == 'DOT':
+                    i += 1
+                    if i >= len(tokens) or tokens[i][0] != 'ID':
+                        error_context = get_context(code, id_line, id_col)
+                        raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидался идентификатор после '.'\n{error_context}")
+                    id_value += '.' + tokens[i][1]
+                    i += 1
+                node = Node('ID', value=id_value, line=id_line, col=id_col)
+                
                 if i < len(tokens) and tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == '(':
                     i += 1
                     args = []
@@ -55,8 +65,8 @@ def parse(tokens, code):
                         error_context = get_context(code, line, col)
                         raise SyntaxError(f"Ожидалась ')' после аргументов функции\n{error_context}")
                     i += 1
-                    return Node('Call', value=value, children=args, line=line, col=col)
-                elif value == 'созвать_дружину':
+                    return Node('Call', value=id_value, children=args, line=line, col=col)
+                elif id_value == 'созвать_дружину':
                     return parse_array_create()
                 if i < len(tokens) and tokens[i][0] == 'BRACKET' and tokens[i][1] == '[':
                     i += 1
@@ -270,19 +280,20 @@ def parse(tokens, code):
             if i < len(tokens) and tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == '(':
                 i += 1
                 expr_nodes = []
-                if i < len(tokens) and not (tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == ')'):
+                while i < len(tokens) and not (tokens[i][0] == 'PARENTHESIS' and tokens[i][1] == ')'):
                     expr_node = parse_expression()
                     if not expr_node:
                         error_context = get_context(code, line, col)
                         raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось выражение в 'молвить'\n{error_context}")
                     expr_nodes.append(expr_node)
-                    while i < len(tokens) and tokens[i][0] == 'COMMA':
+                    if i >= len(tokens):
+                        error_context = get_context(code, line, col)
+                        raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась запятая или ')' после выражения в 'молвить'\n{error_context}")
+                    if tokens[i][0] == 'COMMA':
                         i += 1
-                        next_expr = parse_expression()
-                        if not next_expr:
-                            error_context = get_context(code, line, col)
-                            raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось выражение после запятой в 'молвить'\n{error_context}")
-                        expr_nodes.append(next_expr)
+                    elif tokens[i][0] != 'PARENTHESIS' or tokens[i][1] != ')':
+                        error_context = get_context(code, line, col)
+                        raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась запятая или ')', а не '{tokens[i][1]}' в 'молвить'\n{error_context}")
                 if i >= len(tokens) or tokens[i][0] != 'PARENTHESIS' or tokens[i][1] != ')':
                     error_context = get_context(code, line, col)
                     raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась ')' после аргументов в 'молвить'\n{error_context}")
@@ -297,13 +308,13 @@ def parse(tokens, code):
                 if tokens[i][0] != 'ID':
                     error_context = get_context(code, line, col)
                     raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась переменная, а не '{tokens[i][1]}' после 'молвить'\n{error_context}")
-                expr_node = Node('ID', value=tokens[i][1])
+                expr_node = Node('ID', value=tokens[i][1], line=tokens[i][2], col=tokens[i][3])
                 i += 1
                 expr_nodes = [expr_node]
 
             if i < len(tokens) and tokens[i][0] == 'GOYDA':
                 i += 1
-                return Node('Print', children=expr_nodes)
+                return Node('Print', children=expr_nodes, line=line, col=col)
             else:
                 error_context = get_context(code, line, col)
                 raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась 'гойда' после 'молвить'\n{error_context}")
@@ -708,7 +719,6 @@ def parse(tokens, code):
             
             body = []
             
-            # Блок кода в фигурных скобках
             if i < len(tokens) and tokens[i][0] == 'ОТКРЫТАЯФИГУРНАЯСКОБКА':
                 i += 1
                 while i < len(tokens) and tokens[i][0] != 'ЗАКРЫТАЯФИГУРНАЯСКОБКА':
@@ -728,7 +738,6 @@ def parse(tokens, code):
                     raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось 'закончили пляски' после тела '{loop_name}'\n{error_context}")
                 i += 1
             
-            # Одиночный оператор
             else:
                 stmt = (parse_assignment() or parse_print() or parse_input() or 
                         parse_while() or parse_if() or parse_fixed_loop() or parse_return() or parse_call())
@@ -742,8 +751,8 @@ def parse(tokens, code):
         return None
 
     def parse_import():
-        """Парсинг конструкции импорта (взять из "файл.zg")"""
-        nonlocal i
+        """Парсинг конструкции импорта (взять из 'файл.zg' [как псевдоним] или прочесть книгу 'файл.zg' [и осмыслить текст как псевдоним])"""
+        nonlocal i, tokens, code
         if i >= len(tokens):
             return None
         if tokens[i][0] == 'IMPORT':
@@ -751,14 +760,24 @@ def parse(tokens, code):
             i += 1
             if i >= len(tokens) or tokens[i][0] != 'строченька':
                 error_context = get_context(code, line, col)
-                raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось имя файла в кавычках после 'взять из'\n{error_context}")
+                raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалось имя файла в кавычках после 'взять из' или 'прочесть книгу'\n{error_context}")
             filename = tokens[i][1].strip('"')
             i += 1
+            alias = None
+            if i < len(tokens) and tokens[i][0] in ('AS', 'OLD_AS'):
+                i += 1
+                if i >= len(tokens) or tokens[i][0] != 'ID':
+                    error_context = get_context(code, line, col)
+                    raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидался идентификатор после 'как' или 'и осмыслить текст как'\n{error_context}")
+                alias = tokens[i][1]
+                i += 1
             if i >= len(tokens) or tokens[i][0] != 'GOYDA':
                 error_context = get_context(code, line, col)
-                raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась 'гойда' после имени файла в 'взять из'\n{error_context}")
+                raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась 'гойда' после конструкции импорта\n{error_context}")
             i += 1
-            return Node('Import', value=filename, line=line, col=col)
+            if not alias:
+                alias = filename.rsplit('.', 1)[0]
+            return Node('Import', value=filename, alias=alias, line=line, col=col)
         return None
 
     ast = []

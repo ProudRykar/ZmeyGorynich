@@ -68,6 +68,20 @@ def evaluate_expression(node, context):
         return node.value
     
     elif node.type == 'ID':
+        parts = node.value.split('.')
+        if len(parts) > 1:
+            module_name = parts[0]
+            if module_name not in context.variables:
+                raise NameError(f"Модуль '{module_name}' не найден (строка {node.line}, столбец {node.col})")
+            module_vars = context.variables[module_name]
+            if not isinstance(module_vars, dict):
+                raise NameError(f"'{module_name}' не является модулем (строка {node.line}, столбец {node.col})")
+
+            var_name = parts[1]
+            if var_name in module_vars:
+                return module_vars[var_name]
+            raise NameError(f"Переменная '{var_name}' не найдена в модуле '{module_name}' (строка {node.line}, столбец {node.col})")
+        
         if node.value in context.variables:
             return context[node.value]
         func = context.get_function(node.value)
@@ -228,6 +242,28 @@ def call_function(func, args, parent_context):
         local_context.set(arg_name, arg_value)
     return evaluate(func['body'].children, local_context)
 
+def evaluate_import(ast, context, current_file=None):
+    """Обрабатывает только определения (переменные, функции) из импортированного файла, без выполнения действий."""
+    for node in ast:
+        if node.type == 'Assignment':
+            var_name = node.children[0].value
+            expr_value = evaluate_expression(node.children[1], context)
+            if hasattr(node, 'type_hint') and node.type_hint:
+                if node.type_hint.startswith('decimal:'):
+                    prec = int(node.type_hint.split(':')[1])
+                    getcontext().prec = prec
+                    if isinstance(expr_value, (int, float, str)):
+                        expr_value = Decimal(str(expr_value))
+                    elif not isinstance(expr_value, Decimal):
+                        raise TypeError(f"Ожидалось число для типа '{node.type_hint}', получен {type(expr_value).__name__} (строка {node.line}, столбец {node.col})")
+                check_type(expr_value, node.type_hint, node)
+            context.set(var_name, expr_value, node.type_hint)
+
+        elif node.type == 'Function':
+            args = [arg.value for arg in node.children[0].children]
+            body = node.children[1]
+            context.set_function(node.value, args, body, node.type_hint)
+
 def evaluate(ast, context=None, current_file=None):
     if context is None:
         context = Context()
@@ -370,6 +406,7 @@ def evaluate(ast, context=None, current_file=None):
                 
         elif node.type == 'Import':
             filename = node.value
+            alias = node.alias if node.alias else filename.rsplit('.', 1)[0]
             if not filename.endswith('.zg'):
                 raise ValueError(f"Импортируемый файл должен иметь расширение .zg, получено '{filename}' (строка {node.line}, столбец {node.col})")
 
@@ -391,6 +428,15 @@ def evaluate(ast, context=None, current_file=None):
             imported_tokens = tokenize(imported_code)
             imported_ast = parse(imported_tokens, imported_code)
 
-            evaluate(imported_ast, context, current_file=file_to_import)
+            module_context = Context(parent=context)
+            evaluate_import(imported_ast, module_context, current_file=file_to_import)
+
+            if node.alias is None:
+                for var_name, var_value in module_context.variables.items():
+                    if var_name in context.variables:
+                        raise NameError(f"Конфликт имён: переменная '{var_name}' уже определена в текущем контексте (строка {node.line}, столбец {node.col})")
+                    context.set(var_name, var_value, module_context.type_hints.get(var_name))
+            else:
+                context.set(alias, module_context.variables)
 
     return return_value
