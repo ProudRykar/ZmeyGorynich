@@ -40,6 +40,10 @@ def parse(tokens, code):
                 id_value = value
                 id_line, id_col = line, col
                 i += 1
+                
+                if id_value in ('истина', 'ложь'):
+                    return Node('двосуть', value=(id_value == 'истина'), line=id_line, col=col)
+
                 while i < len(tokens) and tokens[i][0] == 'DOT':
                     i += 1
                     if i >= len(tokens) or tokens[i][0] != 'ID':

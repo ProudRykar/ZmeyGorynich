@@ -1,3 +1,4 @@
+from colorama import Fore, Style
 from parser import parse
 import decimal
 import math
@@ -5,21 +6,135 @@ from decimal import Decimal, getcontext
 import os
 from lexer import tokenize
 
+# Отрефакторить это говно как-нибудь
+
+DEBUG = False
+
+def debug_print(*args, **kwargs):
+    if DEBUG:
+        print(*args, **kwargs)
+
 getcontext().prec = 100
+
+def get_type_name(value):
+    if isinstance(value, bool):
+        return "двосуть"
+    elif isinstance(value, str):
+        return "строченька"
+    elif isinstance(value, int):
+        return "цело"
+    elif isinstance(value, float):
+        return "плывун"
+    elif isinstance(value, Decimal) and getcontext().prec == 30:
+        return "плывун малый точный"
+    elif isinstance(value, Decimal) and getcontext().prec == 50:
+        return "плывун великий"
+    elif isinstance(value, Decimal) and getcontext().prec == 100:
+        return "плывун звёздный"
+
+    elif isinstance(value, list):
+        if not value:
+            return "список"
+        first_item = value[0]
+        if isinstance(first_item, int):
+            return "список цело"
+        elif isinstance(first_item, float):
+            return "список плывун"
+        elif isinstance(first_item, str):
+            return "список строченька"
+        elif isinstance(first_item, bool):
+            return "список двосуть"
+        elif isinstance(first_item, Decimal):
+            return "список плывун малый точный"
+        return "список"
+    return str(type(value).__name__)
+
+def map_type_hint_to_display_name(type_hint, value):
+    if type_hint == 'двосуть':
+        return "двосуть"
+    elif type_hint == 'строченька':
+        return "строченька"
+    elif type_hint == 'число:int':
+        return "цело"
+    elif type_hint == 'число:float':
+        return "плывун"
+    elif type_hint.startswith('decimal:'):
+        prec = int(type_hint.split(':')[1])
+        if prec == 30:
+            return "плывун малый точный"
+        elif prec == 50:
+            return "плывун великий"
+        elif prec == 100:
+            return "плывун звёздный"
+    elif type_hint.startswith('list:'):
+        element_type = type_hint.split(':', 1)[1]
+        element_display_name = map_type_hint_to_display_name(element_type, None)
+        return f"список {element_display_name}"
+    elif type_hint.startswith('список '):
+        element_type = type_hint.split(' ')[1]
+        element_display_name = map_type_hint_to_display_name(element_type, None)
+        return f"список {element_display_name}"
+    return get_type_name(value)
+
+def stringify_value(value):
+    if isinstance(value, bool):
+        return "Истина" if value else "Ложь"
+    return str(value)
+
+builtins = {
+    'созвать_дружину': {
+        'args': ['size', 'value'],
+        'body': None,
+        'return_type': 'list:число:int',
+        'builtin': lambda size, value, context=None: [value] * int(size)
+    },
+    'имя_аргумента': {
+        'builtin': lambda context=None: context.get_call_arg_name() if context else "неизвестно"
+    },
+    'тип_значения': {
+        'builtin': lambda value, context=None: (
+            map_type_hint_to_display_name(
+                context.type_hints.get(context.get_call_arg_name(), None),
+                value
+            )
+            if context and context.get_call_arg_name() in context.type_hints
+            else get_type_name(value)
+        )
+    },
+    'строчить_значение': {
+        'builtin': lambda value, context=None: stringify_value(value)
+    },
+    'глас': {
+        'builtin': lambda value, context=None: (
+            name := context.get_call_arg_name(),
+            type_name := (
+                map_type_hint_to_display_name(
+                    context.type_hints.get(name, None),
+                    value
+                )
+                if context and name in context.type_hints
+                else get_type_name(value)
+            ),
+            result := (
+                f"{Fore.GREEN}{name}{Style.RESET_ALL} -> "
+                f"{Fore.BLUE}{stringify_value(value)}{Style.RESET_ALL} быти "
+                f"{Fore.YELLOW}{type_name}{Style.RESET_ALL}"),
+            print(result),
+            result
+        )[-1]
+    },
+    'молвить': {
+        'builtin': lambda value, context=None: print(value)
+    }
+}
 
 class Context:
     def __init__(self, parent=None):
         self.variables = {}
         self.type_hints = {}
-        self.functions = {
-            'созвать_дружину': {
-                'args': ['size', 'value'],
-                'body': None,
-                'return_type': 'list:число:int',
-                'builtin': lambda size, value: [value] * int(size)
-            }
-        }
+        self.functions = {}
         self.parent = parent
+        self.call_stack = []
 
     def get(self, key, default=None):
         if key in self.variables:
@@ -35,10 +150,13 @@ class Context:
 
     def set_function(self, name, args, body, return_type):
         self.functions[name] = {'args': args, 'body': body, 'return_type': return_type}
+        debug_print(f"Добавлена функция в functions: {name}, текущие функции: {self.functions.keys()}")
 
     def get_function(self, name):
         if name in self.functions:
             return self.functions[name]
+        if name in builtins:
+            return builtins[name]
         if self.parent:
             return self.parent.get_function(name)
         return None
@@ -48,6 +166,30 @@ class Context:
 
     def __getitem__(self, key):
         return self.variables[key]
+
+    def push_call(self, func_name, args_nodes, args_values):
+        self.call_stack.append({
+            'func_name': func_name,
+            'args_nodes': args_nodes,
+            'args_values': args_values
+        })
+
+    def pop_call(self):
+        if self.call_stack:
+            self.call_stack.pop()
+
+    def get_call_arg_name(self, index=0):
+        if not self.call_stack or index >= len(self.call_stack[-1]['args_nodes']):
+            return "неизвестно"
+        arg_node = self.call_stack[-1]['args_nodes'][index]
+        if arg_node.type == 'ID':
+            return arg_node.value
+        elif arg_node.type == 'Call':
+            return f"{arg_node.value}(...)"
+        elif arg_node.type == 'двосуть':
+            return "истина" if arg_node.value else "ложь"
+        else:
+            return str(self.call_stack[-1]['args_values'][index])
 
 def evaluate_expression(node, context):
     if node.type == 'строченька':
@@ -62,7 +204,7 @@ def evaluate_expression(node, context):
                 return int(value)
             elif node.type_hint == 'число:float':
                 return float(value)
-        return Decimal(value) if '.' in value else int(value)
+        return float(value) if '.' in value else int(value)
     
     elif node.type == 'двосуть':
         return node.value
@@ -166,12 +308,9 @@ def evaluate_expression(node, context):
             raise NameError(f"Функция '{node.value}' не определена (строка {node.line}, столбец {node.col})")
         args = [evaluate_expression(arg, context) for arg in node.children]
         if 'builtin' in func:
-            return func['builtin'](*args)
+            return func['builtin'](*args, context=context)
         else:
-            return call_function(func, args, context)
-    raise ValueError(f"Неизвестный тип выражения: {node.type}")
-
-    return None
+            return call_function({'name': node.value, 'args': func['args'], 'body': func['body'], 'args_nodes': node.children}, args, context)
 
 def evaluate_condition(node, context):
     if node.type == 'Condition':
@@ -236,14 +375,20 @@ def check_type(value, type_hint, node):
 
 def call_function(func, args, parent_context):
     if len(args) != len(func['args']):
-        raise ValueError(f"Функция ожидает {len(func['args'])} аргументов, получено {len(args)}")
+        raise ValueError(f"Функция '{func.get('name', 'неизвестная')}' ожидает {len(func['args'])} аргументов, получено {len(args)}")
     local_context = Context(parent=parent_context)
+    local_context.functions = parent_context.functions.copy()
+    local_context.push_call(func.get('name', 'неизвестная'), func.get('args_nodes', []), args)
     for arg_name, arg_value in zip(func['args'], args):
         local_context.set(arg_name, arg_value)
-    return evaluate(func['body'].children, local_context)
+    result = evaluate(func['body'].children, local_context)
+    local_context.pop_call()
+    return result
 
 def evaluate_import(ast, context, current_file=None):
-    """Обрабатывает только определения (переменные, функции) из импортированного файла, без выполнения действий."""
+    debug_print("")
+    debug_print("AST импортированного файла:", ast)
+    debug_print("")
     for node in ast:
         if node.type == 'Assignment':
             var_name = node.children[0].value
@@ -263,6 +408,8 @@ def evaluate_import(ast, context, current_file=None):
             args = [arg.value for arg in node.children[0].children]
             body = node.children[1]
             context.set_function(node.value, args, body, node.type_hint)
+            debug_print(f"Зарегистрирована функция: {node.value}")
+    debug_print(f"Функции в module_context после evaluate_import: {context.functions.keys()}")
 
 def evaluate(ast, context=None, current_file=None):
     if context is None:
@@ -389,12 +536,28 @@ def evaluate(ast, context=None, current_file=None):
         elif node.type == 'Call':
             func = context.get_function(node.value)
             if not func:
+                debug_print(f"Доступные функции в контексте: {context.functions.keys()}")
                 raise NameError(f"Функция '{node.value}' не определена (строка {node.line}, столбец {node.col})")
-            args = [evaluate_expression(arg, context) for arg in node.children]
+            args_values = [evaluate_expression(arg, context) for arg in node.children]
+            arg_types = []
+            for arg in node.children:
+                if arg.type == 'ID' and arg.value in context.type_hints:
+                    arg_types.append(context.type_hints[arg.value])
+                else:
+                    arg_types.append(get_type_name(args_values[node.children.index(arg)]))
             if 'builtin' in func:
-                func['builtin'](*args)
+                context.push_call(node.value, node.children, args_values)
+                result = func['builtin'](*args_values, context=context)
+                context.pop_call()
+                return_value = result
             else:
-                call_function(func, args, context)
+                result = call_function({
+                    'name': node.value,
+                    'args': func['args'],
+                    'body': func['body'],
+                    'args_nodes': node.children
+                }, args_values, context)
+                return_value = result
 
         elif node.type == 'FixedLoop':
             iterations = node.value
@@ -416,6 +579,11 @@ def evaluate(ast, context=None, current_file=None):
                 possible_path = os.path.join(current_dir, filename)
                 if os.path.exists(possible_path):
                     file_to_import = possible_path
+                else:
+                    root_dir = os.path.dirname(current_dir)
+                    libs_path = os.path.join(root_dir, 'libs', filename)
+                    if os.path.exists(libs_path):
+                        file_to_import = libs_path
 
             try:
                 with open(file_to_import, 'r', encoding='utf-8') as f:
@@ -430,6 +598,14 @@ def evaluate(ast, context=None, current_file=None):
 
             module_context = Context(parent=context)
             evaluate_import(imported_ast, module_context, current_file=file_to_import)
+
+            debug_print(f"Функции в module_context перед переносом: {module_context.functions.keys()}")
+            for func_name, func_def in module_context.functions.items():
+                if func_name in context.functions:
+                    raise NameError(f"Конфликт имён: функция '{func_name}' уже определена (строка {node.line}, столбец {node.col})")
+                context.set_function(func_name, func_def['args'], func_def['body'], func_def['return_type'])
+                debug_print(f"Перенесена функция в context: {func_name}")
+            debug_print(f"Функции в context после импорта: {context.functions.keys()}")
 
             if node.alias is None:
                 for var_name, var_value in module_context.variables.items():
