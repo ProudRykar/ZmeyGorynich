@@ -6,7 +6,7 @@ from decimal import Decimal, getcontext
 import os
 from lexer import tokenize
 
-# Отрефакторить это говно как-нибудь
+#TODO: Отрефакторить это говно как-нибудь
 
 DEBUG = False
 
