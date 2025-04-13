@@ -4,6 +4,9 @@
     "fileTypes": [".zg"],
     "patterns": [
         {
+            "include": "#comments"
+        },
+        {
             "include": "#braces"
         },
         {
@@ -22,13 +25,16 @@
             "include": "#numbers"
         },
         {
+            "include": "#import_statement"
+        },
+        {
+            "include": "#special_variables"
+        },
+        {
             "include": "#identifiers"
         },
         {
             "include": "#goyda"
-        },
-        {
-            "include": "#comments"
         }
     ],
     "repository": {
@@ -56,7 +62,7 @@
             "patterns": [
                 {
                     "name": "keyword.control.zmeygorynich",
-                    "match": "\\b(покуда|молвить|внемли|ино|аще|ли|то|дважды|трижды|четырежды|пятьжды|шестьжды|семьжды|осьмьжды|девятьжды|десятьжды|стожды|сотвори|изречет)\\b",
+                    "match": "\\b(покуда|молвить|внемли|ино|аще|ли|то|дважды|трижды|четырежды|пятьжды|шестьжды|семьжды|осьмьжды|девятьжды|десятьжды|стожды|сотвори|изречет|возверни|созвать_дружину|глас)\\b",
                     "settings": {
                         "foreground": "#FFCB6B"
                     }
@@ -66,7 +72,7 @@
         "type_annotations": {
             "patterns": [
                 {
-                    "match": "\\b(быти)\\b\\s+\\b(цело|плывун|строченька|двосуть|плывун малый точный|плывун великий|плывун звездный|список цело|список плывун|список строченька|список двосуть)\\b",
+                    "match": "\\b(быти)\\b\\s+\\b(цело|плывун|строченька|двосуть|список цело|список плывун|список строченька|список двосуть|плывун малый точный|плывун великий|плывун звездный)\\b",
                     "captures": {
                         "1": { "name": "keyword.type.annotation.zmeygorynich" },
                         "2": { "name": "storage.type.zmeygorynich" }
@@ -117,11 +123,41 @@
                 }
             ]
         },
+        "import_statement": {
+            "patterns": [
+                {
+                    "match": "\\b(прочесть книгу)\\s+(\"[^\"]+\")\\s+(и осмыслить слова как)\\s+(\\w+)",
+                    "captures": {
+                        "1": { "name": "keyword.control.import.zmeygorynich" },
+                        "2": { "name": "string.quoted.double.zmeygorynich" },
+                        "3": { "name": "keyword.control.import.zmeygorynich" },
+                        "4": { "name": "variable.zmeygorynich" }
+                    },
+                    "settings": {
+                        "1": { "foreground": "#FFCB6B" },
+                        "2": { "foreground": "#C3E88D" },
+                        "3": { "foreground": "#FFCB6B" },
+                        "4": { "foreground": "#82AAFF" }
+                    }
+                }
+            ]
+        },
+        "special_variables": {
+            "patterns": [
+                {
+                    "name": "string.special.zmeygorynich",
+                    "match": "\\bимпорт\\.импортируемая\\b",
+                    "settings": {
+                        "foreground": "#82AAFF"
+                    }
+                }
+            ]
+        },
         "identifiers": {
             "patterns": [
                 {
                     "name": "variable.zmeygorynich",
-                    "match": "\\b(?!покуда|молвить|внемли|ино|аще|ли|то|гойда)\\w+\\b",
+                    "match": "\\b(?!покуда|молвить|внемли|ино|аще|ли|то|гойда|возверни|созвать_дружину|глас)\\w+\\b",
                     "settings": {
                         "foreground": "#B0C9FF"
                     }
@@ -145,6 +181,16 @@
                 {
                     "name": "comment.line.number-sign.zmeygorynich",
                     "match": "#.*$",
+                    "settings": {
+                        "foreground": "#6A9955",
+                        "fontStyle": "italic"
+                    }
+                },
+                {
+                    "name": "comment.block.zmeygorynich",
+                    "begin": "Голос\\s+предков\\s+шепчет\\s*:",
+                    "end": "Голос\\s+предков\\s+внезапно\\s+стих\\.\\.\\.",
+                    "contentName": "comment.block.zmeygorynich",
                     "settings": {
                         "foreground": "#6A9955",
                         "fontStyle": "italic"
