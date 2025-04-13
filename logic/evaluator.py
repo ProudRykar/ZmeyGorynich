@@ -389,6 +389,7 @@ def evaluate_import(ast, context, current_file=None):
     debug_print("")
     debug_print("AST импортированного файла:", ast)
     debug_print("")
+    
     for node in ast:
         if node.type == 'Assignment':
             var_name = node.children[0].value
@@ -403,6 +404,7 @@ def evaluate_import(ast, context, current_file=None):
                         raise TypeError(f"Ожидалось число для типа '{node.type_hint}', получен {type(expr_value).__name__} (строка {node.line}, столбец {node.col})")
                 check_type(expr_value, node.type_hint, node)
             context.set(var_name, expr_value, node.type_hint)
+
 
         elif node.type == 'Function':
             args = [arg.value for arg in node.children[0].children]
@@ -438,9 +440,17 @@ def evaluate(ast, context=None, current_file=None):
                     formatted_values.append(str(val))
             print(''.join(formatted_values))
 
+
         elif node.type == 'Input':
-            var_name = node.children[0].value
-            user_input = input("")
+            if len(node.children) == 2:
+                prompt = evaluate_expression(node.children[0], context)
+                var_node = node.children[1]
+            else:
+                prompt = ""
+                var_node = node.children[0]
+
+            var_name = var_node.value
+            user_input = input(prompt)
             try:
                 value = int(user_input)
             except ValueError:
@@ -458,6 +468,7 @@ def evaluate(ast, context=None, current_file=None):
                 check_type(value, node.type_hint, node)
             context.set(var_name, value, node.type_hint)
 
+
         elif node.type == 'Assignment':
             var_name = node.children[0].value
             expr_value = evaluate_expression(node.children[1], context)
@@ -471,6 +482,7 @@ def evaluate(ast, context=None, current_file=None):
                         raise TypeError(f"Ожидалось число для типа '{node.type_hint}', получен {type(expr_value).__name__} (строка {node.line}, столбец {node.col})")
                 check_type(expr_value, node.type_hint, node)
             context.set(var_name, expr_value, node.type_hint)
+
 
         elif node.type == 'ArrayAssignment':
             var_name = node.children[0].value
@@ -491,6 +503,7 @@ def evaluate(ast, context=None, current_file=None):
                     check_type(value, element_type, node)
             context[var_name][int(index)] = value
 
+
         elif node.type == 'While':
             condition_node = node.children[0]
             body_node = node.children[1]
@@ -498,6 +511,7 @@ def evaluate(ast, context=None, current_file=None):
                 result = evaluate(body_node.children, context)
                 if result is not None:
                     return result
+
 
         elif node.type == 'If':
             if_condition = node.children[0]
@@ -525,13 +539,16 @@ def evaluate(ast, context=None, current_file=None):
                     if result is not None:
                         return result
 
+
         elif node.type == 'Function':
             args = [arg.value for arg in node.children[0].children]
             body = node.children[1]
             context.set_function(node.value, args, body, node.type_hint)
 
+
         elif node.type == 'Return':
             return evaluate_expression(node.children[0], context)
+
 
         elif node.type == 'Call':
             func = context.get_function(node.value)
@@ -559,6 +576,7 @@ def evaluate(ast, context=None, current_file=None):
                 }, args_values, context)
                 return_value = result
 
+
         elif node.type == 'FixedLoop':
             iterations = node.value
             body_node = node.children[0]
@@ -567,6 +585,7 @@ def evaluate(ast, context=None, current_file=None):
                 if result is not None:
                     return result
                 
+
         elif node.type == 'Import':
             filename = node.value
             alias = node.alias if node.alias else filename.rsplit('.', 1)[0]

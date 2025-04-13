@@ -326,25 +326,49 @@ def parse(tokens, code):
 
 
     def parse_input():
-        """Парсинг функции внемли (input)"""
+        """Парсинг функции внемли (input) с опциональным сообщением в скобках"""
         nonlocal i
         if i >= len(tokens):
             return None
         if tokens[i][0] == 'ID' and tokens[i][1] == 'внемли':
             line, col = tokens[i][2], tokens[i][3]
             i += 1
-            if i < len(tokens) and tokens[i][0] == 'ID':
-                var_node = Node('ID', value=tokens[i][1])
-                i += 1
-                if i < len(tokens) and tokens[i][0] == 'GOYDA':
-                    i += 1
-                    return Node('Input', children=[var_node])
-                else:
-                    error_context = get_context(code, line, col)
-                    raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась 'гойда' после 'внемли'\n{error_context}")
-            else:
+
+            if i >= len(tokens) or tokens[i][0] != 'PARENTHESIS' or tokens[i][1] != '(':
                 error_context = get_context(code, line, col)
-                raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась переменная после 'внемли'\n{error_context}")
+                raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась '(' после 'внемли'\n{error_context}")
+            i += 1
+
+            prompt_node = None
+            if i < len(tokens) and tokens[i][0] == 'строченька':
+                prompt_node = Node('строченька', value=tokens[i][1].strip('"'), line=tokens[i][2], col=tokens[i][3])
+                i += 1
+
+                if i >= len(tokens) or tokens[i][0] != 'COMMA':
+                    error_context = get_context(code, line, col)
+                    raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась запятая ',' после строки\n{error_context}")
+                i += 1
+
+            if i >= len(tokens) or tokens[i][0] != 'ID':
+                error_context = get_context(code, line, col)
+                raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась переменная\n{error_context}")
+            var_node = Node('ID', value=tokens[i][1], line=tokens[i][2], col=tokens[i][3])
+            i += 1
+
+            if i >= len(tokens) or tokens[i][0] != 'PARENTHESIS' or tokens[i][1] != ')':
+                error_context = get_context(code, line, col)
+                raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась ')' после переменной\n{error_context}")
+            i += 1
+
+            if i >= len(tokens) or tokens[i][0] != 'GOYDA':
+                error_context = get_context(code, line, col)
+                raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась 'гойда' после 'внемли(...)' \n{error_context}")
+            i += 1
+
+            children = [var_node]
+            if prompt_node:
+                children.insert(0, prompt_node)
+            return Node('Input', children=children, line=line, col=col)
         return None
 
 
