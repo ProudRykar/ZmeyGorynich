@@ -273,7 +273,7 @@ def parse(tokens, code):
 
 
     def parse_print():
-        """Парсинг функции молвить (print)"""
+        """Парсинг функции молвить (print) и молвить(... и эхом затихнуть)"""
         nonlocal i
         if i >= len(tokens):
             return None
@@ -316,9 +316,20 @@ def parse(tokens, code):
                 i += 1
                 expr_nodes = [expr_node]
 
+            is_silent = False
+            if (i + 2 < len(tokens) and 
+                tokens[i][0] == 'ID' and tokens[i][1] == 'и' and
+                tokens[i+1][0] == 'ID' and tokens[i+1][1] == 'эхом' and
+                tokens[i+2][0] == 'ID' and tokens[i+2][1] == 'затихнуть'):
+                is_silent = True
+                i += 3
+
             if i < len(tokens) and tokens[i][0] == 'GOYDA':
                 i += 1
-                return Node('Print', children=expr_nodes, line=line, col=col)
+                if is_silent:
+                    return Node('PrintWithSilence', children=expr_nodes, line=line, col=col)
+                else:
+                    return Node('Print', children=expr_nodes, line=line, col=col)
             else:
                 error_context = get_context(code, line, col)
                 raise SyntaxError(f"{Fore.RED}Оказия синтаксиса:{Style.RESET_ALL} Ожидалась 'гойда' после 'молвить'\n{error_context}")

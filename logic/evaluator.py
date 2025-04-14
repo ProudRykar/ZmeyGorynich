@@ -419,7 +419,8 @@ def evaluate(ast, context=None, current_file=None):
 
     return_value = None
     for node in ast:
-        if node.type == 'Print':
+
+        if node.type == 'Print' or node.type == 'PrintWithSilence':
             expr_values = [evaluate_expression(child, context) for child in node.children]
             formatted_values = []
             for val in expr_values:
@@ -438,7 +439,11 @@ def evaluate(ast, context=None, current_file=None):
                         formatted_values.append(str(val))
                 else:
                     formatted_values.append(str(val))
-            print(''.join(formatted_values))
+            output = ''.join(formatted_values)
+            if node.type == 'PrintWithSilence':
+                print(output + '\n')
+            else:
+                print(output)
 
 
         elif node.type == 'Input':
