@@ -4,7 +4,7 @@ from parser import parse
 from evaluator import Context, evaluate
 
 # Более удобный способ для вывода функций и дебага
-DEBUG = False
+DEBUG = True
 
 def run_code(filename):
     """Программа, интерпретирующая .zg в код Python"""

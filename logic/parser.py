@@ -641,22 +641,33 @@ def parse(tokens, code):
             raise SyntaxError(f"Ожидалось 'изречет' после аргументов\n{error_context}")
         i += 1
 
+        # Собираем многословный тип возврата
+        type_parts = []
         if i >= len(tokens) or tokens[i][0] != 'ID':
             error_context = get_context(code, line, col)
             raise SyntaxError(f"Ожидался тип возврата после 'изречет'\n{error_context}")
-        return_type = tokens[i][1]
+        while (i < len(tokens) and tokens[i][0] == 'ID' and 
+            tokens[i][1] not in ('гойда', 'ухожу я в пляс')):
+            type_parts.append(tokens[i][1])
+            i += 1
+        return_type = ' '.join(type_parts)
         type_map = {
             'цело': 'число:int',
             'плывун': 'число:float',
             'строченька': 'строченька',
             'двосуть': 'двосуть',
-            
+            'плывун малый точный': 'decimal:30',
+            'плывун великий': 'decimal:50',
+            'плывун звездный': 'decimal:100',
+            'список цело': 'list:число:int',
+            'список плывун': 'list:число:float',
+            'список строченька': 'list:строченька',
+            'список двосуть': 'list:двосуть'
         }
         if return_type not in type_map:
             error_context = get_context(code, line, col)
             raise SyntaxError(f"Неизвестный тип возврата '{return_type}'\n{error_context}")
         return_type = type_map[return_type]
-        i += 1
 
         if i >= len(tokens) or tokens[i][0] != 'ОТКРЫТАЯФИГУРНАЯСКОБКА':
             error_context = get_context(code, line, col)
@@ -681,7 +692,6 @@ def parse(tokens, code):
 
         return Node('Function', value=func_name, children=[Node('Args', children=args), 
                                                         Node('Block', children=body)], type_hint=return_type)
-    
 
     def parse_return():
         """Парсинг return"""

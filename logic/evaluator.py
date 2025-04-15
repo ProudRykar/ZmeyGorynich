@@ -108,16 +108,23 @@ builtins = {
     'глас': {
         'builtin': lambda value, context=None, arg_type=None: (
             name := context.get_call_arg_name(),
+            is_function_call := (arg_type == 'Call'),
+            func_name := context.call_stack[-1]['args_nodes'][0].value if is_function_call else name,
+            func_def := context.get_function(func_name) if is_function_call else None,
+            return_type_hint := func_def.get('return_type') if func_def and is_function_call else None,
             type_name := (
                 map_type_hint_to_display_name(
+                    return_type_hint,
+                    value
+                )
+                if is_function_call and return_type_hint
+                else map_type_hint_to_display_name(
                     context.type_hints.get(name, None),
                     value
                 )
-                if context and name in context.type_hints
+                if context and name in context.type_hints and not is_function_call
                 else get_type_name(value)
             ),
-            is_function_call := (arg_type == 'Call'),
-            func_name := context.call_stack[-1]['args_nodes'][0].value if is_function_call else name,
             args_nodes := context.call_stack[-1]['args_nodes'][0].children if is_function_call else [],
             args_values := (
                 [evaluate_expression(arg_node, context) for arg_node in args_nodes]
@@ -127,7 +134,7 @@ builtins = {
             args_with_types := [],
             ([
                 args_with_types.append((
-                    arg_node.value if arg_node.type == 'ID' else str(arg_value),
+                    arg_node.value if arg_node.type == 'ID' else stringify_value(arg_value),
                     arg_value,
                     (
                         map_type_hint_to_display_name(
@@ -135,16 +142,20 @@ builtins = {
                             arg_value
                         )
                         if arg_node.type == 'ID' and arg_node.value in context.type_hints
+                        else map_type_hint_to_display_name(
+                            context.type_hints.get(func_name + ':' + str(i), None),
+                            arg_value
+                        ) if is_function_call and func_name + ':' + str(i) in context.type_hints
                         else get_type_name(arg_value)
                     )
                 ))
-                for arg_node, arg_value in zip(args_nodes, args_values)
+                for i, (arg_node, arg_value) in enumerate(zip(args_nodes, args_values))
             ] if is_function_call else []),
             all_same_type := len(set(arg[2] for arg in args_with_types)) == 1 if args_with_types else False,
             args_str := (
-                f"{Fore.BLUE}{', '.join(str(arg[1]) for arg in args_with_types)}{Style.RESET_ALL} быти {Fore.YELLOW}{args_with_types[0][2]}"
+                f"{Fore.BLUE}{', '.join(stringify_value(arg[1]) for arg in args_with_types)}{Style.RESET_ALL} быти {Fore.YELLOW}{args_with_types[0][2]}"
                 if all_same_type and args_with_types
-                else ', '.join(f"{Fore.BLUE}{arg[1]}{Style.RESET_ALL} быти {Fore.YELLOW}{arg[2]}" for arg in args_with_types)
+                else ', '.join(f"{Fore.BLUE}{stringify_value(arg[1])}{Style.RESET_ALL} быти {Fore.YELLOW}{arg[2]}" for arg in args_with_types)
             ) if is_function_call else f"{Fore.BLUE}{stringify_value(value)}{Style.RESET_ALL} быти {Fore.YELLOW}{type_name}{Style.RESET_ALL}",
             call_name := (
                 f"{func_name}({', '.join(stringify_value(arg) for arg in args_values)})"
@@ -152,7 +163,7 @@ builtins = {
                 else name
             ),
             result := (
-                f"{Fore.CYAN}ᚨᛇᛟ: "  # ᚨᛇᛟ = Духовное знание предков
+                f"{Fore.CYAN}ᚨᛇᛟ: "
                 f"{Fore.MAGENTA if is_function_call else Fore.GREEN}{call_name}{Style.RESET_ALL} -> "
                 f"{Fore.GREEN}{args_str}{Style.RESET_ALL}"
                 + (f" -> {Fore.BLUE}{stringify_value(value)}{Style.RESET_ALL} быти {Fore.YELLOW}{type_name}{Style.RESET_ALL}" if is_function_call else "")
@@ -235,13 +246,29 @@ def evaluate_expression(node, context):
     
     elif node.type == 'число':
         value = node.value
-        if hasattr(node, 'type_hint') and node.type_hint:
-            if node.type_hint.startswith('decimal:'):
+        type_hint = getattr(node, 'type_hint', None)
+        if type_hint:
+            if type_hint.startswith('decimal:'):
+                prec = int(type_hint.split(':')[1])
+                getcontext().prec = prec
                 return Decimal(value)
-            elif node.type_hint == 'число:int':
+            elif type_hint == 'число:int':
                 return int(value)
-            elif node.type_hint == 'число:float':
+            elif type_hint == 'число:float':
                 return float(value)
+
+        if context.call_stack and context.call_stack[-1]['args_nodes']:
+            arg_name = context.get_call_arg_name()
+            if arg_name in context.type_hints:
+                type_hint = context.type_hints[arg_name]
+                if type_hint.startswith('decimal:'):
+                    prec = int(type_hint.split(':')[1])
+                    getcontext().prec = prec
+                    return Decimal(value)
+                elif type_hint == 'число:int':
+                    return int(value)
+                elif type_hint == 'число:float':
+                    return float(value)
         return float(value) if '.' in value else int(value)
     
     elif node.type == 'двосуть':
@@ -417,10 +444,54 @@ def call_function(func, args, parent_context):
     local_context = Context(parent=parent_context)
     local_context.functions = parent_context.functions.copy()
     local_context.push_call(func.get('name', 'неизвестная'), func.get('args_nodes', []), args)
-    for arg_name, arg_value in zip(func['args'], args):
-        local_context.set(arg_name, arg_value)
+    
+    debug_print(f"Аргументы функции {func.get('name')}: {[(arg_name, type(arg_value), arg_value) for arg_name, arg_value in zip(func['args'], args)]}")
+    
+    for arg_name, arg_value, arg_node in zip(func['args'], args, func.get('args_nodes', [])):
+        type_hint = None
+        for arg in func['body'].children[0].children:
+            if arg.value == arg_name:
+                type_hint = arg.type_hint
+                break
+        if type_hint:
+            if type_hint.startswith('decimal:'):
+                prec = int(type_hint.split(':')[1])
+                getcontext().prec = prec
+                if not isinstance(arg_value, Decimal):
+                    arg_value = Decimal(str(arg_value))
+            elif type_hint == 'число:int':
+                arg_value = int(arg_value)
+            elif type_hint == 'число:float':
+                arg_value = float(arg_value)
+            elif type_hint == 'строченька':
+                arg_value = str(arg_value)
+            elif type_hint == 'двосуть':
+                arg_value = bool(arg_value)
+            check_type(arg_value, type_hint, arg_node)
+        local_context.set(arg_name, arg_value, type_hint)
+    
     result = evaluate(func['body'].children, local_context)
     local_context.pop_call()
+    
+    return_type = func.get('return_type')
+    if return_type and result is not None:
+        if return_type.startswith('decimal:'):
+            prec = int(return_type.split(':')[1])
+            getcontext().prec = prec
+            if not isinstance(result, Decimal):
+                result = Decimal(str(result))
+        elif return_type == 'число:int':
+            result = int(result)
+        elif return_type == 'число:float':
+            result = float(result)
+        elif return_type == 'строченька':
+            result = str(result)
+        elif return_type == 'двосуть':
+            result = bool(result)
+        check_type(result, return_type, None)
+    
+    debug_print(f"Результат функции {func.get('name')}: {type(result)}, {result}")
+    
     return result
 
 def evaluate_import(ast, context, current_file=None):
@@ -600,7 +671,6 @@ def evaluate(ast, context=None, current_file=None):
                 raise NameError(f"Функция '{node.value}' не определена (строка {node.line}, столбец {node.col})")
             args_values = [evaluate_expression(arg, context) for arg in node.children]
             if 'builtin' in func:
-                # Передаём тип аргумента для глас
                 if node.value == 'глас':
                     context.push_call(node.value, node.children, args_values)
                     result = func['builtin'](*args_values, context=context, arg_type=node.children[0].type)
@@ -611,12 +681,14 @@ def evaluate(ast, context=None, current_file=None):
                     context.pop_call()
                 return_value = result
             else:
+                node.type_hint = func.get('return_type')  # Assign return type to node
                 result = call_function({
                     'name': node.value,
                     'args': func['args'],
                     'body': func['body'],
                     'args_nodes': node.children
                 }, args_values, context)
+                check_type(result, node.type_hint, node)
                 return_value = result
 
 
