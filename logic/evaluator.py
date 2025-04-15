@@ -6,7 +6,8 @@ from decimal import Decimal, getcontext
 import os
 from lexer import tokenize
 
-#TODO: Отрефакторить это говно как-нибудь
+# TODO: Отрефакторить это говно как-нибудь, но это в далёком будущем я на файлы всё разобью, а то потом сидеть и плакать, 
+# лазая по файлам, где я находится говно, ломающее логику
 
 DEBUG = False
 
@@ -105,7 +106,7 @@ builtins = {
         'builtin': lambda value, context=None: stringify_value(value)
     },
     'глас': {
-        'builtin': lambda value, context=None: (
+        'builtin': lambda value, context=None, arg_type=None: (
             name := context.get_call_arg_name(),
             type_name := (
                 map_type_hint_to_display_name(
@@ -115,10 +116,47 @@ builtins = {
                 if context and name in context.type_hints
                 else get_type_name(value)
             ),
+            is_function_call := (arg_type == 'Call'),
+            func_name := context.call_stack[-1]['args_nodes'][0].value if is_function_call else name,
+            args_nodes := context.call_stack[-1]['args_nodes'][0].children if is_function_call else [],
+            args_values := (
+                [evaluate_expression(arg_node, context) for arg_node in args_nodes]
+                if is_function_call
+                else []
+            ),
+            args_with_types := [],
+            ([
+                args_with_types.append((
+                    arg_node.value if arg_node.type == 'ID' else str(arg_value),
+                    arg_value,
+                    (
+                        map_type_hint_to_display_name(
+                            context.type_hints.get(arg_node.value, None),
+                            arg_value
+                        )
+                        if arg_node.type == 'ID' and arg_node.value in context.type_hints
+                        else get_type_name(arg_value)
+                    )
+                ))
+                for arg_node, arg_value in zip(args_nodes, args_values)
+            ] if is_function_call else []),
+            all_same_type := len(set(arg[2] for arg in args_with_types)) == 1 if args_with_types else False,
+            args_str := (
+                f"{Fore.BLUE}{', '.join(str(arg[1]) for arg in args_with_types)}{Style.RESET_ALL} быти {Fore.YELLOW}{args_with_types[0][2]}"
+                if all_same_type and args_with_types
+                else ', '.join(f"{Fore.BLUE}{arg[1]}{Style.RESET_ALL} быти {Fore.YELLOW}{arg[2]}" for arg in args_with_types)
+            ) if is_function_call else f"{Fore.BLUE}{stringify_value(value)}{Style.RESET_ALL} быти {Fore.YELLOW}{type_name}{Style.RESET_ALL}",
+            call_name := (
+                f"{func_name}({', '.join(stringify_value(arg) for arg in args_values)})"
+                if is_function_call
+                else name
+            ),
             result := (
-                f"{Fore.GREEN}{name}{Style.RESET_ALL} -> "
-                f"{Fore.BLUE}{stringify_value(value)}{Style.RESET_ALL} быти "
-                f"{Fore.YELLOW}{type_name}{Style.RESET_ALL}"),
+                f"{Fore.CYAN}ᚨᛇᛟ: "  # ᚨᛇᛟ = Духовное знание предков
+                f"{Fore.MAGENTA if is_function_call else Fore.GREEN}{call_name}{Style.RESET_ALL} -> "
+                f"{Fore.GREEN}{args_str}{Style.RESET_ALL}"
+                + (f" -> {Fore.BLUE}{stringify_value(value)}{Style.RESET_ALL} быти {Fore.YELLOW}{type_name}{Style.RESET_ALL}" if is_function_call else "")
+            ),
             print(result),
             result
         )[-1]
@@ -561,16 +599,16 @@ def evaluate(ast, context=None, current_file=None):
                 debug_print(f"Доступные функции в контексте: {context.functions.keys()}")
                 raise NameError(f"Функция '{node.value}' не определена (строка {node.line}, столбец {node.col})")
             args_values = [evaluate_expression(arg, context) for arg in node.children]
-            arg_types = []
-            for arg in node.children:
-                if arg.type == 'ID' and arg.value in context.type_hints:
-                    arg_types.append(context.type_hints[arg.value])
-                else:
-                    arg_types.append(get_type_name(args_values[node.children.index(arg)]))
             if 'builtin' in func:
-                context.push_call(node.value, node.children, args_values)
-                result = func['builtin'](*args_values, context=context)
-                context.pop_call()
+                # Передаём тип аргумента для глас
+                if node.value == 'глас':
+                    context.push_call(node.value, node.children, args_values)
+                    result = func['builtin'](*args_values, context=context, arg_type=node.children[0].type)
+                    context.pop_call()
+                else:
+                    context.push_call(node.value, node.children, args_values)
+                    result = func['builtin'](*args_values, context=context)
+                    context.pop_call()
                 return_value = result
             else:
                 result = call_function({
