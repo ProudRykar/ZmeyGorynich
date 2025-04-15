@@ -606,7 +606,14 @@ def parse(tokens, code):
                         'цело': 'число:int',
                         'плывун': 'число:float',
                         'строченька': 'строченька',
-                        'двосуть': 'двосуть'
+                        'двосуть': 'двосуть',
+                        'плывун малый точный': 'decimal:30',
+                        'плывун великий': 'decimal:50',
+                        'плывун звездный': 'decimal:100',
+                        'список цело': 'list:число:int',
+                        'список плывун': 'list:число:float',
+                        'список строченька': 'list:строченька',
+                        'список двосуть': 'list:двосуть'
                     }
                     type_hint = type_map.get(type_name)
                     if type_hint is None:
@@ -642,7 +649,8 @@ def parse(tokens, code):
             'цело': 'число:int',
             'плывун': 'число:float',
             'строченька': 'строченька',
-            'двосуть': 'двосуть'
+            'двосуть': 'двосуть',
+            
         }
         if return_type not in type_map:
             error_context = get_context(code, line, col)
