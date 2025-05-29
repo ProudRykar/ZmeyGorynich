@@ -6,9 +6,6 @@ from decimal import Decimal, getcontext
 import os
 from lexer import tokenize
 
-# TODO: Отрефакторить это говно как-нибудь, но это в далёком будущем я на файлы всё разобью, а то потом сидеть и плакать, 
-# лазая по файлам, где я находится говно, ломающее логику
-
 DEBUG = False
 
 def debug_print(*args, **kwargs):

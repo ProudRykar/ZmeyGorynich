@@ -1,0 +1,25 @@
+site_name: Документация ZmeyGorynich
+theme:
+  name: material
+  language: ru
+  palette:
+    scheme: default
+  features:
+    - content.code.copy
+nav:
+  - Главная: index.md
+  - Запуск: startup.md
+  - Отладка: debug.md
+  - Обработка ошибок: traceback.md
+  - Синтаксис языка: syntax.md
+  - Встроенные функции: builtins.md
+  - Лексический анализ: lex_analysis.md
+  - Интерпретатор: interpreter.md
+  - Примеры программ: examples.md
+  - Команды: commands.md
+docs_dir: docs
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed
