@@ -1,3 +1,5 @@
+#PYTHONPATH=./logic pytest tests/ -v
+
 import sys
 import os
 
