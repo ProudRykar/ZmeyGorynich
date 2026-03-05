@@ -1,10 +1,10 @@
-from colorama import Fore, Style
 from parser import parse
 import decimal
 import math
 from decimal import Decimal, getcontext
 import os
 from lexer import tokenize
+from colored_text import Color
 
 DEBUG = False
 
@@ -150,20 +150,20 @@ builtins = {
             ] if is_function_call else []),
             all_same_type := len(set(arg[2] for arg in args_with_types)) == 1 if args_with_types else False,
             args_str := (
-                f"{Fore.BLUE}{', '.join(stringify_value(arg[1]) for arg in args_with_types)}{Style.RESET_ALL} быти {Fore.YELLOW}{args_with_types[0][2]}"
+                f"{Color.BLUE.value}{', '.join(stringify_value(arg[1]) for arg in args_with_types)}{Color.RESET_ALL.value} быти {Color.YELLOW.value}{args_with_types[0][2]}"
                 if all_same_type and args_with_types
-                else ', '.join(f"{Fore.BLUE}{stringify_value(arg[1])}{Style.RESET_ALL} быти {Fore.YELLOW}{arg[2]}" for arg in args_with_types)
-            ) if is_function_call else f"{Fore.BLUE}{stringify_value(value)}{Style.RESET_ALL} быти {Fore.YELLOW}{type_name}{Style.RESET_ALL}",
+                else ', '.join(f"{Color.BLUE.value}{stringify_value(arg[1])}{Color.RESET_ALL.value} быти {Color.YELLOW.value}{arg[2]}" for arg in args_with_types)
+            ) if is_function_call else f"{Color.BLUE.value}{stringify_value(value)}{Color.RESET_ALL.value} быти {Color.YELLOW.value}{type_name}{Color.RESET_ALL.value}",
             call_name := (
                 f"{func_name}({', '.join(stringify_value(arg) for arg in args_values)})"
                 if is_function_call
                 else name
             ),
             result := (
-                f"{Fore.CYAN}ᚨᛇᛟ: "
-                f"{Fore.MAGENTA if is_function_call else Fore.GREEN}{call_name}{Style.RESET_ALL} -> "
-                f"{Fore.GREEN}{args_str}{Style.RESET_ALL}"
-                + (f" -> {Fore.BLUE}{stringify_value(value)}{Style.RESET_ALL} быти {Fore.YELLOW}{type_name}{Style.RESET_ALL}" if is_function_call else "")
+                f"{Color.CYAN.value}ᚨᛇᛟ: "
+                f"{Color.MAGENTA.value if is_function_call else Color.GREEN.value}{call_name}{Color.RESET_ALL.value} -> "
+                f"{Color.GREEN.value}{args_str}{Color.RESET_ALL.value}"
+                + (f" -> {Color.BLUE.value}{stringify_value(value)}{Color.RESET_ALL.value} быти {Color.YELLOW.value}{type_name}{Color.RESET_ALL.value}" if is_function_call else "")
             ),
             print(result),
             result

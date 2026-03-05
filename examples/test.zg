@@ -1,5 +1,5 @@
 # Запускать:
-# python -m logic/interpreter.py examples/program.zg
+# python3 src/zmeygorynich/interpreter.py examples/test.zg
 
 прочесть книгу "import_test_input.zg" и осмыслить слова как импорт гойда
 
