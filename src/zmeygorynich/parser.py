@@ -112,6 +112,15 @@ def parse(tokens, code):
             return expr
 
         if k == 'ID':
+
+            if v == 'Истина':
+                advance()
+                return Node('двосуть', value=True, line=ln, col=cl)
+
+            if v == 'Ложь':
+                advance()
+                return Node('двосуть', value=False, line=ln, col=cl)
+
             # собрать многосоставный идентификатор через DOT
             id_parts = [v]
             ln_id, cl_id = ln, cl
