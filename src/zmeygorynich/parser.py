@@ -124,19 +124,15 @@ def parse(tokens, code):
             id_value = '.'.join(id_parts)
             node = Node('ID', value=id_value, line=ln_id, col=cl_id)
 
-            # вызов функции
             if cur()[0] == 'PARENTHESIS' and cur()[1] == '(':
                 advance()
                 args = parse_comma_separated('PARENTHESIS', ')', allow_empty=False, element_parser=parse_expression,
                                              error_msg="Ожидалось выражение в аргументах функции")
                 return Node('Call', value=id_value, children=args, line=ln_id, col=cl_id)
 
-            # особая конструкция создания массива
             if id_value == 'созвать_дружину' and cur()[0] == 'PARENTHESIS' and cur()[1] == '(':
-                # оставим специализированную обработку для совместимости
                 return parse_array_create_specific(ln_id, cl_id)
 
-            # индексирование
             if cur()[0] == 'BRACKET' and cur()[1] == '[':
                 advance()
                 idx = parse_expression()
@@ -170,12 +166,7 @@ def parse(tokens, code):
 
     def parse_array_create_specific(line, col):
         """Парсинг создания массива - созвать_дружину"""
-        # называю отдельно, чтобы сохранить текст ошибки и семантику
-        # текущий токен уже 'созвать_дружину' -> следующий должен быть '(' (проверено ранее)
-        # откроем скобку (у нас уже открыт), поэтому парсим: size, ',', value, ')'
-        # предположение: текущий токен — после идентификатора; уже проверяли '(' выше
-        # перемещаемся так, чтобы синтаксис соответствовал исходному
-        # в коде выше вызов гарантирует что '(' уже взят, но на всякий случай:
+
         if cur()[0] == 'PARENTHESIS' and cur()[1] == '(':
             advance()
         size_expr = parse_expression()
@@ -188,7 +179,6 @@ def parse(tokens, code):
         expect('PARENTHESIS', ')', msg="Ожидалась ')' после аргументов в 'созвать_дружину'", line=line, col=col)
         return Node('ArrayCreate', children=[size_expr, value_expr])
 
-    # общая для лево-ассоциативных бинарных операторов
     def parse_left_assoc(subparser, ops):
         left = subparser()
         if not left:
@@ -203,14 +193,71 @@ def parse(tokens, code):
         return left
 
     def parse_expression():
-        """Парсинг выражения с приоритетами: **,*/%,+-"""
-        def parse_power():
-            return parse_left_assoc(parse_primary, ('**',))
-        def parse_mul_div():
-            return parse_left_assoc(parse_power, ('*', '/', '%'))
-        return parse_left_assoc(parse_mul_div, ('+', '-'))
+      """Выражение с приоритетами и сравнениями"""
 
-    # --- дальше — конструкции уровня операторов (assignment, print, input, while, if, function, return, call, fixed_loop, import)
+      def parse_comparison():
+          left = parse_additive()
+          if not left:
+              return None
+
+          if cur()[0] == 'OP' and cur()[1] in (
+              '<', '>', '<=', '>=', '==', '!=',
+              'равно', 'не равно',
+              'превосходит', 'уступает',
+              'ровно либо превосходит',
+              'ровно либо уступает'
+          ):
+              op = cur()[1]
+              advance()
+              right = parse_additive()
+              if not right:
+                  raise SyntaxError(
+                      f"{Color.RED.value}Оказия синтаксиса:{Color.RESET_ALL.value} "
+                      f"Ожидалось выражение после '{op}'\n{error_ctx_from(i-1)}"
+                  )
+              return Node('BinaryOp', op=op, children=[left, right])
+
+          return left
+
+      def parse_additive():
+          return parse_left_assoc(
+              parse_multiplicative,
+              ('+', '-', 'прибави', 'отними')
+          )
+
+      def parse_multiplicative():
+          return parse_left_assoc(
+              parse_power,
+              ('*', '/', '%', 'умножи на', 'раздели на', 'остаток от')
+          )
+
+      def parse_power():
+          left = parse_primary()
+          if not left:
+              return None
+
+          if cur()[0] == 'OP' and cur()[1] in ('**', 'возвысить в'):
+              op = cur()[1]
+              advance()
+              right = parse_power()
+              if not right:
+                  raise SyntaxError(
+                      f"{Color.RED.value}Оказия синтаксиса:{Color.RESET_ALL.value} "
+                      f"Ожидалось выражение после '{op}'\n{error_ctx_from(i-1)}"
+                  )
+              return Node('BinaryOp', op=op, children=[left, right])
+
+          return left
+
+      return parse_comparison()
+    
+    def parse_expression_statement():
+      expr = parse_expression()
+      if expr and cur()[0] == 'GOYDA':
+          advance()
+          return Node('ExpressionStatement', children=[expr])
+      return None
+
     def parse_assignment():
         nonlocal i
         start = i
@@ -265,16 +312,6 @@ def parse(tokens, code):
 
         i = start
         return None
-
-    def parse_condition():
-        left = parse_expression()
-        if not left or cur()[0] != 'OP' or cur()[1] not in ('<', '>', '<=', '>=', '==', '!='):
-            return None
-        op = cur()[1]; advance()
-        right = parse_expression()
-        if not right:
-            raise SyntaxError(f"{Color.RED.value}Оказия синтаксиса:{Color.RESET_ALL.value} Ожидалось выражение после '{op}'\n{error_ctx_from(i-1)}")
-        return Node('Condition', op=op, children=[left, right])
 
     def parse_print():
         """Парсинг функции молвить (print) и молвить(... и эхом затихнуть)"""
@@ -335,7 +372,7 @@ def parse(tokens, code):
         if cur()[0] != 'ID' or cur()[1] != 'покуда':
             return None
         line, col = cur()[2], cur()[3]; advance()
-        condition = parse_condition()
+        condition = parse_expression()
         if not condition:
             raise SyntaxError(f"{Color.RED.value}Оказия синтаксиса:{Color.RESET_ALL.value} Ожидалось условие после 'покуда'\n{get_context(code, line, col)}")
         expect('ОТКРЫТАЯФИГУРНАЯСКОБКА', msg="Ожидалось 'ухожу я в пляс' после условия в 'покуда'", line=line, col=col)
@@ -373,7 +410,7 @@ def parse(tokens, code):
         if cur()[0] != 'ID' or cur()[1] != 'аще':
             return None
         line, col = cur()[2], cur()[3]; advance()
-        condition = parse_condition()
+        condition = parse_expression()
         if not condition:
             raise SyntaxError(f"{Color.RED.value}Оказия синтаксиса:{Color.RESET_ALL.value} Ожидалось условие после 'аще'\n{get_context(code, line, col)}")
         expect('ID', 'то', msg="Ожидалось 'то' после условия", line=line, col=col)
@@ -399,7 +436,7 @@ def parse(tokens, code):
         while cur()[0] == 'ID' and cur()[1] == 'аще':
             advance()
             expect('ID', 'ли', msg="Ожидалось 'ли' после 'аще' для 'аще ли'", line=line, col=col)
-            elif_cond = parse_condition()
+            elif_cond = parse_expression()
             expect('ID', 'то', msg="Ожидалось 'то' после условия в 'аще ли'", line=line, col=col)
             expect('ОТКРЫТАЯФИГУРНАЯСКОБКА', msg="Ожидалось 'ухожу я в пляс' после 'то' в 'аще ли'", line=line, col=col)
             elif_body = parse_block_until_close([parse_assignment, parse_print, parse_input, parse_while, parse_if, parse_return])
@@ -572,7 +609,7 @@ def parse(tokens, code):
         if cur()[0] == 'NEWLINE':
             advance(); continue
         parsers = (parse_if, parse_while, parse_input, parse_print, parse_assignment,
-                   parse_array_create, parse_function, parse_call, parse_fixed_loop, parse_import)
+                   parse_array_create, parse_function, parse_call, parse_fixed_loop, parse_import, parse_expression_statement)
         for p in parsers:
             stmt = p()
             if stmt:

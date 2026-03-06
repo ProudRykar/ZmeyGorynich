@@ -8,6 +8,42 @@ from colored_text import Color
 
 DEBUG = False
 
+def normalize_operator(op: str) -> str:
+    """
+    Нормализует оператор из AST в унифицированную форму, понятную интерпретатору.
+    Убирает лишние пробелы/двоеточия, приводит к нижнему регистру, заменяет букву 'ё' на 'е'
+    и поддерживает большое количество русских синонимов.
+    """
+    if not isinstance(op, str):
+        return op
+
+    o = op.strip().lower()
+    if o.endswith(':'):
+        o = o[:-1].strip()
+    o = o.replace('ё', 'е')
+
+    o = ' '.join(o.split())
+
+    mapping = {
+        'прибави': '+', 'прибавить': '+', 'плюс': '+',
+        'отними': '-', 'вычти': '-', 'минус': '-',
+        'умножи на': '*', 'умножить на': '*', 'умножи': '*',
+        'раздели на': '/', 'разделить на': '/', 'дели на': '/',
+        'остаток от': '%', 'мод': '%',
+        'возвысить в': '**', 'возвысить': '**', 'возвести в': '**', 'в степенне': '**',
+
+        'превосходит': '>', 'превышает': '>', 'больше': '>',
+        'уступает': '<', 'меньше': '<', 'меньше чем': '<',
+        'ровно': '==', 'равно': '==', 'есть': '==', 'равно ли': '==',
+        'не равно': '!=', 'неравно': '!=', 'не равно ли': '!=', 'не есть': '!=',
+        'ровно либо превосходит': '>=', 'ровно или превосходит': '>=', 'больше или равно': '>=',
+        'ровно либо уступает': '<=', 'ровно или уступает': '<=', 'меньше или равно': '<=',
+
+        '>': '>', '<': '<', '>=': '>=', '<=': '<=', '==': '==', '!=': '!=',
+    }
+
+    return mapping.get(o, o)
+
 def debug_print(*args, **kwargs):
     if DEBUG:
         print(*args, **kwargs)
@@ -317,10 +353,24 @@ def evaluate_expression(node, context):
         return array
 
     elif node.type == 'BinaryOp':
+        op = normalize_operator(node.op)
         left = evaluate_expression(node.children[0], context)
         right = evaluate_expression(node.children[1], context)
+
+        comparison_ops = {
+          '<': lambda x, y: x < y,
+          '>': lambda x, y: x > y,
+          '<=': lambda x, y: x <= y,
+          '>=': lambda x, y: x >= y,
+          '==': lambda x, y: x == y,
+          '!=': lambda x, y: x != y,
+        }
+
+        if op in comparison_ops:
+            return comparison_ops[op](left, right)
+          
         
-        if node.op == '+':
+        if op == '+':
             if isinstance(left, str) or isinstance(right, str):
                 return str(left) + str(right)
             if isinstance(left, (int, float, Decimal)) and isinstance(right, (int, float, Decimal)):
@@ -332,12 +382,13 @@ def evaluate_expression(node, context):
             raise ValueError(f"Нельзя сложить {type(left).__name__} и {type(right).__name__} с помощью '+' (строка {node.line}, столбец {node.col})")
         
         if not (isinstance(left, (int, float, Decimal)) and isinstance(right, (int, float, Decimal))):
-            raise ValueError(f"Операция '{node.op}' поддерживается только для чисел, а не для {type(left).__name__} и {type(right).__name__} (строка {node.line}, столбец {node.col})")
+            raise ValueError(f"Операция '{op}' поддерживается только для чисел, а не для {type(left).__name__} и {type(right).__name__} (строка {node.line}, столбец {node.col})")
         
         if isinstance(left, Decimal) or isinstance(right, Decimal):
             left = Decimal(str(left))
             right = Decimal(str(right))
-        
+
+        # ДО блока ops      
         ops = {
             '-': lambda x, y: x - y,
             '*': lambda x, y: x * y,
@@ -345,7 +396,7 @@ def evaluate_expression(node, context):
             '%': lambda x, y: x % y,
             '**': lambda x, y: x ** y,
         }
-        operation = ops.get(node.op)
+        operation = ops.get(op)
         if operation:
             return operation(left, right)
         return None
@@ -376,6 +427,7 @@ def evaluate_expression(node, context):
 
 def evaluate_condition(node, context):
     if node.type == 'Condition':
+        op = normalize_operator(node.op)
         left = evaluate_expression(node.children[0], context)
         right = evaluate_expression(node.children[1], context)
         ops = {
@@ -387,10 +439,10 @@ def evaluate_condition(node, context):
             '!=': lambda x, y: x != y,
             '===': lambda x, y: x == y,
         }
-        operation = ops.get(node.op)
+        operation = ops.get(op)
         if operation:
             return operation(left, right)
-        raise ValueError(f"Неизвестная операция условия: {node.op} (строка {node.line}, столбец {node.col})")
+        raise ValueError(f"Неизвестная операция условия: {op} (строка {node.line}, столбец {node.col})")
     return False
 
 def check_type(value, type_hint, node):
