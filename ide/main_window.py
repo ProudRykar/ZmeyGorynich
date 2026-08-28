@@ -21,6 +21,7 @@ from ide.analysis.analyzer import analyze, strip_ansi
 from ide import theme
 from ide.editor.zg_editor import ZGEditor
 from ide.editor.find_replace import FindReplaceBar, EditorArea
+from ide.git_panel import GitPanel
 from ide.run.runner import Runner
 from ide.sidebar import Sidebar
 from ide.terminal_view import TerminalView
@@ -243,6 +244,11 @@ class MainWindow(QWidget):
         self.bottom.addTab(self.output, "Вывод")
         self._output_tab = self.output
 
+        self.git_panel = GitPanel(PROJECT_ROOT)
+        self.git_panel.openFileRequested.connect(self.open_path)
+        self.bottom.addTab(self.git_panel, "Git")
+        self.bottom.currentChanged.connect(self._on_bottom_tab_changed)
+
         vsplit = QSplitter(Qt.Vertical)
         vsplit.addWidget(editor_container)
         vsplit.addWidget(self.bottom)
@@ -414,6 +420,7 @@ class MainWindow(QWidget):
             self, "Открыть папку", PROJECT_ROOT)
         if path:
             self.sidebar.set_root(path)
+            self.git_panel.set_repo_start(path)
 
     def _open_reference(self):
         from ide.reference import ReferenceDialog
@@ -486,6 +493,10 @@ class MainWindow(QWidget):
         editor = self.tabs.widget(index)
         if editor is not None:
             self._refresh_problems(editor)
+
+    def _on_bottom_tab_changed(self, index):
+        if self.bottom.widget(index) is self.git_panel:
+            self.git_panel.refresh()
 
     # ---------- анализ ----------
     def _on_editor_changed(self, editor):
