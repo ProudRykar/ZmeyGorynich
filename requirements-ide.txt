@@ -1,0 +1,4 @@
+PyQt5>=5.15
+QScintilla>=2.13
+pytest==8.3.2
+colorama==0.4.6
