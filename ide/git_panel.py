@@ -227,7 +227,7 @@ class GitPanel(QWidget):
                 border: 1px solid {theme.ACCENT};
             }}
             QLabel#GitPanelTitle {{
-                color: {theme.ACCENT};
+                color: {theme.TEXT_DIM};
                 font-size: 17px;
                 font-weight: 700;
                 padding: 2px 0 4px 0;
@@ -514,6 +514,8 @@ class GitPanel(QWidget):
             return _UNTRACKED_COLOR
         if f["staged"]:
             return _STAGED_COLOR
+        if f["deleted"]:
+            return QColor("#E5534B")
         return _MODIFIED_COLOR
 
     def _set_status(self, text, error=False):

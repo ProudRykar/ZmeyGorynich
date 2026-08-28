@@ -104,6 +104,7 @@ class GitRepo:
                 "y": y,
                 "staged": x not in (" ", "?"),
                 "untracked": x == "?",
+                "deleted": x == "D" or y == "D",
             })
             i += 1
 
