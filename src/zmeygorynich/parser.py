@@ -549,7 +549,7 @@ class Parser:
             else:
                 raise SyntaxError(f"Неожиданный токен '{self.cur()[1]}' в теле функции\n{self.error_ctx_from(self.i)}")
         self.expect('ЗАКРЫТАЯФИГУРНАЯСКОБКА', msg="Ожидалось 'закончили пляски' после тела функции", line=line, col=col)
-        return Node('Function', value=func_name, children=[Node('Args', children=args), Node('Block', children=body)], type_hint=return_type)
+        return Node('Function', value=func_name, children=[Node('Args', children=args), Node('Block', children=body)], type_hint=return_type, line=line, col=col)
 
     def parse_return(self):
         """Парсинг return"""

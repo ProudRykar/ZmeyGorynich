@@ -21,7 +21,6 @@ from ide.analysis.analyzer import analyze, strip_ansi
 from ide import theme
 from ide.editor.zg_editor import ZGEditor
 from ide.editor.find_replace import FindReplaceBar, EditorArea
-from ide.git_panel import GitPanel
 from ide.run.runner import Runner
 from ide.sidebar import Sidebar
 from ide.terminal_view import TerminalView
@@ -198,7 +197,7 @@ class MainWindow(QWidget):
         root.addWidget(self.title_bar)
 
         # основная область: боковая панель + редактор/вывод
-        self.sidebar = Sidebar(self)
+        self.sidebar = Sidebar(PROJECT_ROOT, self)
         self.sidebar.fileActivated.connect(self.open_path)
         self.sidebar.symbolActivated.connect(self._goto_linecol)
         self.sidebar.openFolderRequested.connect(self.open_folder)
@@ -243,11 +242,6 @@ class MainWindow(QWidget):
         self.bottom.addTab(self.problems, "Проблемы")
         self.bottom.addTab(self.output, "Вывод")
         self._output_tab = self.output
-
-        self.git_panel = GitPanel(PROJECT_ROOT)
-        self.git_panel.openFileRequested.connect(self.open_path)
-        self.bottom.addTab(self.git_panel, "Git")
-        self.bottom.currentChanged.connect(self._on_bottom_tab_changed)
 
         vsplit = QSplitter(Qt.Vertical)
         vsplit.addWidget(editor_container)
@@ -420,7 +414,6 @@ class MainWindow(QWidget):
             self, "Открыть папку", PROJECT_ROOT)
         if path:
             self.sidebar.set_root(path)
-            self.git_panel.set_repo_start(path)
 
     def _open_reference(self):
         from ide.reference import ReferenceDialog
@@ -494,10 +487,6 @@ class MainWindow(QWidget):
         if editor is not None:
             self._refresh_problems(editor)
 
-    def _on_bottom_tab_changed(self, index):
-        if self.bottom.widget(index) is self.git_panel:
-            self.git_panel.refresh()
-
     # ---------- анализ ----------
     def _on_editor_changed(self, editor):
         self._pending_editor = editor
@@ -535,7 +524,11 @@ class MainWindow(QWidget):
         self._goto_linecol(data)
 
     def _goto_linecol(self, data):
+        if not data:
+            return
         line, col = data
+        if line is None:
+            return
         editor = self.current_editor()
         if editor is not None:
             editor.setCursorPosition(line - 1, max(0, col - 1))

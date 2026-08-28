@@ -121,7 +121,7 @@ class GitRepo:
         self._run(["add", "-A"], check=True)
 
     def unstage_all(self):
-        self._run(["restore", "--staged", "-A"], check=True)
+        self._run(["reset"], check=True)
 
     # --- история ---
 
@@ -137,3 +137,16 @@ class GitRepo:
 
     def pull(self, remote="origin"):
         return self._run(["pull", remote], check=False).strip()
+
+    # --- ветки ---
+
+    def branches(self):
+        """Возвращает список локальных веток (без '*')."""
+        out = self._run(["branch", "--format=%(refname:short)"], check=False)
+        return [b.strip() for b in out.splitlines() if b.strip()]
+
+    def checkout(self, name):
+        return self._run(["checkout", name], check=False).strip()
+
+    def create_branch(self, name):
+        return self._run(["checkout", "-b", name], check=False).strip()

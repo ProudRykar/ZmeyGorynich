@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import (
 )
 
 from ide.editor.zg_editor import ZGEditor
+from ide.git_panel import GitPanel
 from ide import theme
 
 ACCENT = "#E6B450"
@@ -24,7 +25,7 @@ class Sidebar(QWidget):
     openFolderRequested = pyqtSignal()
     settingsChanged = pyqtSignal(dict)     # изменения настроек IDE
 
-    def __init__(self, parent=None):
+    def __init__(self, repo_start=".", parent=None):
         super().__init__(parent)
         self.setObjectName("Sidebar")
 
@@ -51,10 +52,13 @@ class Sidebar(QWidget):
         self._symbols_view = self._build_symbols_view()
         self._search_view = self._build_search_view()
         self._settings_view = self._build_settings_view()
+        self._git_view = GitPanel(repo_start)
+        self._git_view.openFileRequested.connect(self.fileActivated)
         self._content.addWidget(self._files_view)
         self._content.addWidget(self._symbols_view)
         self._content.addWidget(self._search_view)
         self._content.addWidget(self._settings_view)
+        self._content.addWidget(self._git_view)
 
         self._add_activity(self._folder_icon(),
                            "Проводник (файлы)", self._files_view)
@@ -62,6 +66,8 @@ class Sidebar(QWidget):
                            "Символы (функции/переменные)", self._symbols_view)
         self._add_activity(self._search_icon(),
                            "Поиск и замена", self._search_view)
+        self._add_activity(self._git_icon(),
+                           "Источник (git)", self._git_view)
         self._add_activity(self._settings_icon(),
                            "Настройки IDE", self._settings_view)
 
@@ -94,6 +100,8 @@ class Sidebar(QWidget):
         for b in self._activity_buttons:
             b.setChecked(b is btn)
         self._content.setCurrentWidget(widget)
+        if widget is self._git_view:
+            self._git_view.refresh()
 
     def _set_active(self, index):
         self._activate(self._content.widget(index), self._activity_buttons[index])
@@ -181,6 +189,23 @@ class Sidebar(QWidget):
         p.setBrush(Qt.NoBrush)
         p.drawEllipse(6, 6, 11, 11)                 # лупа
         p.drawLine(15, 15, 20, 20)                 # ручка
+        p.end()
+        return QIcon(pm)
+
+    def _git_icon(self):
+        pm = QPixmap(24, 24)
+        pm.fill(Qt.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.Antialiasing)
+        pen = QPen(QColor(ACCENT), 2)
+        p.setPen(pen)
+        p.setBrush(QColor(ACCENT))
+        p.drawEllipse(4, 3, 6, 6)     # верхняя точка ветвления
+        p.drawEllipse(4, 15, 6, 6)    # нижняя точка
+        p.drawEllipse(16, 15, 6, 6)   # ответвление
+        p.setBrush(Qt.NoBrush)
+        p.drawLine(7, 9, 7, 15)       # ствол
+        p.drawLine(7, 18, 16, 18)     # ответвление вбок
         p.end()
         return QIcon(pm)
 
@@ -391,6 +416,8 @@ class Sidebar(QWidget):
             else:
                 return
         self._root_path = path
+        if hasattr(self, "_git_view"):
+            self._git_view.set_repo_start(path)
         self.file_tree.clear()
         root = QTreeWidgetItem(self.file_tree, [os.path.basename(path)])
         root.setIcon(0, self._folder_icon())
